@@ -1,0 +1,461 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidBoundedString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isValidStringList(listVal, maxItems) {
+      return listVal is list &&
+             listVal.size() <= maxItems &&
+             (listVal.size() == 0 || (listVal[0] is string && listVal[0].size() >= 1 && listVal[0].size() <= 80));
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.userId == userId &&
+             isValidBoundedString(data.displayName, 1, 80) &&
+             (!('currentRole' in data) || isValidBoundedString(data.currentRole, 0, 80)) &&
+             (!('experienceLevel' in data) || isValidBoundedString(data.experienceLevel, 0, 40)) &&
+             (!('country' in data) || isValidBoundedString(data.country, 0, 60)) &&
+             (!('timezone' in data) || isValidBoundedString(data.timezone, 0, 60)) &&
+             (!('domain' in data) || isValidBoundedString(data.domain, 0, 60)) &&
+             (!('careerLevel' in data) || data.careerLevel in ['Junior', 'Mid-level', 'Senior', 'Director / Leadership']) &&
+             (!('planTier' in data) || data.planTier in ['Starter — Free', 'Growth — Paid', 'Professional+ — Paid', 'Company / Enterprise']) &&
+             (!('roleMode' in data) || data.roleMode in ['LEARNER', 'MENTOR', 'DIRECTOR', 'COMPANY', 'ADMIN']) &&
+             (!('weeklyHours' in data) || (data.weeklyHours is int && data.weeklyHours >= 1 && data.weeklyHours <= 80)) &&
+             (!('currentSkills' in data) || isValidStringList(data.currentSkills, 30)) &&
+             (!('targetSkills' in data) || isValidStringList(data.targetSkills, 30)) &&
+             (!('goalsSummary' in data) || isValidBoundedString(data.goalsSummary, 0, 400)) &&
+             (!('points' in data) || (data.points is int && data.points >= 0 && data.points <= 1000000)) &&
+             (!('streakDays' in data) || (data.streakDays is int && data.streakDays >= 0 && data.streakDays <= 3650)) &&
+             (!('passportPublic' in data) || data.passportPublic is bool) &&
+             (!('showRepoLinks' in data) || data.showRepoLinks is bool) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCareerGoal(data, userId) {
+      return data.userId == userId &&
+             isValidBoundedString(data.targetRole, 1, 100) &&
+             isValidBoundedString(data.experienceLevel, 1, 40) &&
+             data.weeklyHours is int && data.weeklyHours >= 1 && data.weeklyHours <= 60 &&
+             data.readinessScore is int && data.readinessScore >= 0 && data.readinessScore <= 100 &&
+             isValidBoundedString(data.executiveSummary, 1, 2000) &&
+             isValidStringList(data.currentSkills, 30) &&
+             isValidStringList(data.matchedSkills, 30) &&
+             data.isActive is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidSkillGap(data, userId) {
+      return data.userId == userId &&
+             isValidId(data.goalId) &&
+             isValidBoundedString(data.skillName, 1, 80) &&
+             data.priority in ['HIGH', 'MEDIUM', 'LOW'] &&
+             isValidBoundedString(data.currentLevel, 1, 60) &&
+             isValidBoundedString(data.targetLevel, 1, 60) &&
+             isValidBoundedString(data.whyItMatters, 1, 500) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidRoadmapMilestone(data, userId) {
+      return data.userId == userId &&
+             isValidId(data.goalId) &&
+             data.phaseOrder is int && data.phaseOrder >= 1 && data.phaseOrder <= 50 &&
+             isValidBoundedString(data.title, 1, 120) &&
+             isValidBoundedString(data.description, 1, 800) &&
+             data.estimatedHours is int && data.estimatedHours >= 1 && data.estimatedHours <= 200 &&
+             isValidBoundedString(data.practiceProject, 1, 500) &&
+             isValidBoundedString(data.resourceTip, 1, 300) &&
+             data.completed is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCoachMessage(data, userId) {
+      return data.userId == userId &&
+             isValidId(data.goalId) &&
+             data.mode in ['INTERVIEW', 'COACH'] &&
+             data.sender in ['USER', 'AI'] &&
+             isValidBoundedString(data.content, 1, 6000) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidSubmission(data, userId) {
+      return data.userId == userId &&
+             isValidBoundedString(data.challengeId, 1, 128) &&
+             isValidBoundedString(data.challengeTitle, 1, 150) &&
+             isValidBoundedString(data.companyName, 1, 100) &&
+             data.category in ['CHALLENGE', 'CONTEST', 'REVERSE_ENG'] &&
+             isValidBoundedString(data.roleInTeam, 1, 80) &&
+             isValidStringList(data.skillsApplied, 20) &&
+             (!('repoOrDemoUrl' in data) || isValidBoundedString(data.repoOrDemoUrl, 0, 300)) &&
+             isValidBoundedString(data.understandingReport, 1, 3000) &&
+             data.status in ['PENDING', 'UNDER_REVIEW', 'VERIFIED', 'DISPUTED'] &&
+             (!('mentorFeedback' in data) || isValidBoundedString(data.mentorFeedback, 0, 1000)) &&
+             data.score is int && data.score >= 0 && data.score <= 100 &&
+             data.pointsAwarded is int && data.pointsAwarded >= 0 && data.pointsAwarded <= 10000 &&
+             (!('rewardAmount' in data) || isValidBoundedString(data.rewardAmount, 0, 40)) &&
+             data.rewardStatus in ['PENDING', 'UNDER_REVIEW', 'APPROVED', 'PAID', 'DISPUTED'] &&
+             data.isPublicOnPassport is bool &&
+             isValidBoundedString(data.verificationCode, 1, 64) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCommunityPost(data) {
+      return isValidId(data.authorId) &&
+             isValidBoundedString(data.authorName, 1, 80) &&
+             isValidBoundedString(data.authorLevel, 1, 40) &&
+             data.authorVerified is bool &&
+             isValidBoundedString(data.postType, 1, 40) &&
+             isValidBoundedString(data.title, 3, 180) &&
+             isValidBoundedString(data.body, 3, 5000) &&
+             isValidStringList(data.tags, 8) &&
+             data.helpfulCount is int && data.helpfulCount >= -1000 && data.helpfulCount <= 1000000 &&
+             data.commentCount is int && data.commentCount >= 0 && data.commentCount <= 100000 &&
+             (!('acceptedCommentId' in data) || isValidBoundedString(data.acceptedCommentId, 0, 128)) &&
+             data.isHidden is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCommunityComment(data) {
+      return isValidId(data.postId) &&
+             isValidBoundedString(data.parentCommentId, 0, 128) &&
+             isValidId(data.authorId) &&
+             isValidBoundedString(data.authorName, 1, 80) &&
+             isValidBoundedString(data.authorLevel, 1, 40) &&
+             data.authorVerified is bool &&
+             isValidBoundedString(data.body, 1, 3000) &&
+             data.helpfulCount is int && data.helpfulCount >= -1000 && data.helpfulCount <= 1000000 &&
+             data.isBestAnswer is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidTeam(data) {
+      return isValidId(data.captainId) &&
+             isValidBoundedString(data.captainName, 1, 80) &&
+             isValidBoundedString(data.name, 2, 100) &&
+             isValidBoundedString(data.description, 2, 1000) &&
+             isValidBoundedString(data.domain, 1, 60) &&
+             isValidBoundedString(data.level, 1, 40) &&
+             data.maxMembers is int && data.maxMembers >= 2 && data.maxMembers <= 12 &&
+             isValidStringList(data.memberIds, 12) &&
+             isValidStringList(data.memberNames, 12) &&
+             isValidStringList(data.requiredSkills, 15) &&
+             isValidStringList(data.rolesNeeded, 10) &&
+             (!('challengeTitle' in data) || isValidBoundedString(data.challengeTitle, 0, 150)) &&
+             data.lookingForTeammates is bool &&
+             data.sprintProgress is int && data.sprintProgress >= 0 && data.sprintProgress <= 100 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidTeamTask(data) {
+      return isValidId(data.teamId) &&
+             isValidStringList(data.memberIds, 12) &&
+             isValidBoundedString(data.title, 1, 140) &&
+             isValidBoundedString(data.assigneeName, 1, 80) &&
+             isValidBoundedString(data.role, 1, 60) &&
+             data.status in ['TODO', 'IN_PROGRESS', 'DONE'] &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidReport(data) {
+      return data.reporterId == request.auth.uid &&
+             isValidBoundedString(data.targetType, 1, 40) &&
+             isValidBoundedString(data.targetId, 1, 128) &&
+             isValidBoundedString(data.reason, 3, 1000) &&
+             data.status in ['OPEN', 'REVIEWED', 'DISMISSED'] &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'displayName', 'currentRole', 'experienceLevel', 'country',
+                         'timezone', 'domain', 'careerLevel', 'planTier', 'roleMode', 'weeklyHours',
+                         'currentSkills', 'targetSkills', 'goalsSummary', 'points', 'streakDays',
+                         'passportPublic', 'showRepoLinks', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidUserProfile(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'currentRole', 'experienceLevel', 'country',
+                         'timezone', 'domain', 'careerLevel', 'planTier', 'roleMode', 'weeklyHours',
+                         'currentSkills', 'targetSkills', 'goalsSummary', 'points', 'streakDays',
+                         'passportPublic', 'showRepoLinks', 'updatedAt'
+                       ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /goals/{goalId} {
+        allow get: if isOwner(userId) && isValidId(goalId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(goalId) &&
+                         incoming().keys().hasAll(['userId', 'targetRole', 'experienceLevel', 'weeklyHours', 'readinessScore', 'executiveSummary', 'currentSkills', 'matchedSkills', 'isActive', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'targetRole', 'experienceLevel', 'weeklyHours', 'readinessScore', 'executiveSummary', 'currentSkills', 'matchedSkills', 'isActive', 'createdAt', 'updatedAt']) &&
+                         isValidCareerGoal(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(goalId) &&
+                         isValidCareerGoal(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['isActive', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly(['readinessScore', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly(['targetRole', 'experienceLevel', 'weeklyHours', 'readinessScore', 'executiveSummary', 'currentSkills', 'matchedSkills', 'isActive', 'updatedAt'])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(goalId);
+      }
+
+      match /gaps/{gapId} {
+        allow get: if isOwner(userId) && isValidId(gapId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(gapId) &&
+                         incoming().keys().hasAll(['userId', 'goalId', 'skillName', 'priority', 'currentLevel', 'targetLevel', 'whyItMatters', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'goalId', 'skillName', 'priority', 'currentLevel', 'targetLevel', 'whyItMatters', 'createdAt', 'updatedAt']) &&
+                         isValidSkillGap(incoming(), userId) &&
+                         existsAfter(/databases/$(database)/documents/users/$(userId)/goals/$(incoming().goalId));
+
+        allow update: if isOwner(userId) &&
+                         isValidId(gapId) &&
+                         isValidSkillGap(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().goalId == existing().goalId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['priority', 'currentLevel', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(gapId);
+      }
+
+      match /milestones/{milestoneId} {
+        allow get: if isOwner(userId) && isValidId(milestoneId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(milestoneId) &&
+                         incoming().keys().hasAll(['userId', 'goalId', 'phaseOrder', 'title', 'description', 'estimatedHours', 'practiceProject', 'resourceTip', 'completed', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'goalId', 'phaseOrder', 'title', 'description', 'estimatedHours', 'practiceProject', 'resourceTip', 'completed', 'createdAt', 'updatedAt']) &&
+                         isValidRoadmapMilestone(incoming(), userId) &&
+                         existsAfter(/databases/$(database)/documents/users/$(userId)/goals/$(incoming().goalId));
+
+        allow update: if isOwner(userId) &&
+                         isValidId(milestoneId) &&
+                         isValidRoadmapMilestone(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().goalId == existing().goalId &&
+                         incoming().createdAt == existing().createdAt &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['completed', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'estimatedHours', 'practiceProject', 'resourceTip', 'completed', 'updatedAt'])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(milestoneId);
+      }
+
+      match /coachMessages/{messageId} {
+        allow get: if isOwner(userId) && isValidId(messageId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(messageId) &&
+                         incoming().keys().hasAll(['userId', 'goalId', 'mode', 'sender', 'content', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'goalId', 'mode', 'sender', 'content', 'createdAt']) &&
+                         isValidCoachMessage(incoming(), userId);
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(messageId);
+      }
+
+      match /submissions/{submissionId} {
+        allow get: if isOwner(userId) && isValidId(submissionId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(submissionId) &&
+                         incoming().keys().hasAll(['userId', 'challengeId', 'challengeTitle', 'companyName', 'category', 'roleInTeam', 'skillsApplied', 'understandingReport', 'status', 'score', 'pointsAwarded', 'rewardStatus', 'isPublicOnPassport', 'verificationCode', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'challengeId', 'challengeTitle', 'companyName', 'category', 'roleInTeam', 'skillsApplied', 'repoOrDemoUrl', 'understandingReport', 'status', 'mentorFeedback', 'score', 'pointsAwarded', 'rewardStatus', 'rewardAmount', 'isPublicOnPassport', 'verificationCode', 'createdAt', 'updatedAt']) &&
+                         isValidSubmission(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(submissionId) &&
+                         isValidSubmission(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().challengeId == existing().challengeId &&
+                         incoming().createdAt == existing().createdAt &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['isPublicOnPassport', 'updatedAt']) ||
+                           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'mentorFeedback', 'score', 'pointsAwarded', 'rewardStatus', 'updatedAt'])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(submissionId);
+      }
+    }
+
+    match /communityPosts/{postId} {
+      allow get: if isSignedIn() && isValidId(postId) && (existing().isHidden == false || existing().authorId == request.auth.uid);
+      allow list: if isSignedIn() && existing().isHidden == false;
+
+      allow create: if isSignedIn() &&
+                       isValidId(postId) &&
+                       incoming().authorId == request.auth.uid &&
+                       incoming().keys().hasAll(['authorId', 'authorName', 'authorLevel', 'authorVerified', 'postType', 'title', 'body', 'tags', 'helpfulCount', 'commentCount', 'isHidden', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['authorId', 'authorName', 'authorLevel', 'authorVerified', 'postType', 'title', 'body', 'tags', 'helpfulCount', 'commentCount', 'acceptedCommentId', 'isHidden', 'createdAt', 'updatedAt']) &&
+                       isValidCommunityPost(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(postId) &&
+                       isValidCommunityPost(incoming()) &&
+                       incoming().authorId == existing().authorId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         (existing().authorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'body', 'tags', 'acceptedCommentId', 'isHidden', 'updatedAt'])) ||
+                         (incoming().diff(existing()).affectedKeys().hasOnly(['helpfulCount', 'updatedAt'])) ||
+                         (incoming().diff(existing()).affectedKeys().hasOnly(['commentCount', 'updatedAt']))
+                       );
+
+      allow delete: if isSignedIn() && isValidId(postId) && existing().authorId == request.auth.uid;
+
+      match /comments/{commentId} {
+        allow get: if isSignedIn() && isValidId(commentId);
+        allow list: if isSignedIn();
+
+        allow create: if isSignedIn() &&
+                         isValidId(commentId) &&
+                         incoming().authorId == request.auth.uid &&
+                         incoming().postId == postId &&
+                         incoming().keys().hasAll(['postId', 'parentCommentId', 'authorId', 'authorName', 'authorLevel', 'authorVerified', 'body', 'helpfulCount', 'isBestAnswer', 'createdAt']) &&
+                         incoming().keys().hasOnly(['postId', 'parentCommentId', 'authorId', 'authorName', 'authorLevel', 'authorVerified', 'body', 'helpfulCount', 'isBestAnswer', 'createdAt']) &&
+                         isValidCommunityComment(incoming());
+
+        allow update: if isSignedIn() &&
+                         isValidId(commentId) &&
+                         isValidCommunityComment(incoming()) &&
+                         incoming().authorId == existing().authorId &&
+                         incoming().postId == existing().postId &&
+                         incoming().createdAt == existing().createdAt &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['helpfulCount']) ||
+                           (get(/databases/$(database)/documents/communityPosts/$(postId)).data.authorId == request.auth.uid &&
+                            incoming().diff(existing()).affectedKeys().hasOnly(['isBestAnswer']))
+                         );
+
+        allow delete: if isSignedIn() && isValidId(commentId) && existing().authorId == request.auth.uid;
+      }
+    }
+
+    match /teams/{teamId} {
+      allow get: if isSignedIn() && isValidId(teamId) && (existing().lookingForTeammates == true || request.auth.uid in existing().memberIds);
+      allow list: if isSignedIn() && (existing().lookingForTeammates == true || request.auth.uid in existing().memberIds);
+
+      allow create: if isSignedIn() &&
+                       isValidId(teamId) &&
+                       incoming().captainId == request.auth.uid &&
+                       request.auth.uid in incoming().memberIds &&
+                       incoming().keys().hasAll(['captainId', 'captainName', 'name', 'description', 'domain', 'level', 'maxMembers', 'memberIds', 'memberNames', 'requiredSkills', 'rolesNeeded', 'lookingForTeammates', 'sprintProgress', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['captainId', 'captainName', 'name', 'description', 'domain', 'level', 'maxMembers', 'memberIds', 'memberNames', 'requiredSkills', 'rolesNeeded', 'challengeTitle', 'lookingForTeammates', 'sprintProgress', 'createdAt', 'updatedAt']) &&
+                       isValidTeam(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(teamId) &&
+                       isValidTeam(incoming()) &&
+                       incoming().captainId == existing().captainId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         (request.auth.uid in existing().memberIds && incoming().diff(existing()).affectedKeys().hasOnly(['sprintProgress', 'lookingForTeammates', 'challengeTitle', 'updatedAt'])) ||
+                         (existing().lookingForTeammates == true && incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'memberNames', 'updatedAt']))
+                       );
+
+      allow delete: if isSignedIn() && isValidId(teamId) && existing().captainId == request.auth.uid;
+
+      match /tasks/{taskId} {
+        allow get: if isSignedIn() && isValidId(taskId) &&
+                      request.auth.uid in existing().memberIds &&
+                      request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.memberIds;
+        allow list: if isSignedIn() && request.auth.uid in existing().memberIds;
+
+        allow create: if isSignedIn() &&
+                         isValidId(taskId) &&
+                         incoming().teamId == teamId &&
+                         request.auth.uid in incoming().memberIds &&
+                         request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.memberIds &&
+                         incoming().keys().hasAll(['teamId', 'memberIds', 'title', 'assigneeName', 'role', 'status', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['teamId', 'memberIds', 'title', 'assigneeName', 'role', 'status', 'createdAt', 'updatedAt']) &&
+                         isValidTeamTask(incoming());
+
+        allow update: if isSignedIn() &&
+                         isValidId(taskId) &&
+                         request.auth.uid in existing().memberIds &&
+                         request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.memberIds &&
+                         isValidTeamTask(incoming()) &&
+                         incoming().teamId == existing().teamId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'assigneeName', 'updatedAt']);
+
+        allow delete: if isSignedIn() &&
+                         isValidId(taskId) &&
+                         request.auth.uid in existing().memberIds &&
+                         request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.memberIds;
+      }
+    }
+
+    match /reports/{reportId} {
+      allow get: if isSignedIn() && isValidId(reportId) && existing().reporterId == request.auth.uid;
+      allow list: if isSignedIn() && existing().reporterId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       isValidId(reportId) &&
+                       incoming().keys().hasAll(['reporterId', 'targetType', 'targetId', 'reason', 'status', 'createdAt']) &&
+                       incoming().keys().hasOnly(['reporterId', 'targetType', 'targetId', 'reason', 'status', 'createdAt']) &&
+                       isValidReport(incoming());
+
+      allow update, delete: if false;
+    }
+  }
+}
