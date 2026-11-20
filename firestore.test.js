@@ -42,15 +42,17 @@ beforeEach(async () => {
   }
 });
 
-test("Unauthenticated user cannot read or write user goals, submissions, community posts, or teams", async () => {
+test("Unauthenticated user cannot read or write user goals, submissions, badges, ledger, community posts, or teams", async () => {
   const unauthDb = testEnv.unauthenticatedContext().firestore();
   await assertFails(unauthDb.collection("users").doc(ALICE_UID).collection("goals").get());
   await assertFails(unauthDb.collection("users").doc(ALICE_UID).collection("submissions").get());
+  await assertFails(unauthDb.collection("users").doc(ALICE_UID).collection("badges").get());
+  await assertFails(unauthDb.collection("users").doc(ALICE_UID).collection("pointLedger").get());
   await assertFails(unauthDb.collection("communityPosts").where("isHidden", "==", false).get());
   await assertFails(unauthDb.collection("teams").where("lookingForTeammates", "==", true).get());
 });
 
-test("Cross-user isolation: Bob cannot read or write Alice's submissions or goals", async () => {
+test("Cross-user isolation: Bob cannot read or write Alice's submissions, badges, or goals", async () => {
   const ts = nowDate();
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
@@ -77,6 +79,75 @@ test("Cross-user isolation: Bob cannot read or write Alice's submissions or goal
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
   await assertFails(bobDb.collection("users").doc(ALICE_UID).collection("submissions").doc("sub_1").get());
   await assertFails(bobDb.collection("users").doc(ALICE_UID).collection("submissions").get());
+  await assertFails(bobDb.collection("users").doc(ALICE_UID).collection("badges").get());
+});
+
+test("Persisted preferences, idempotent badges, immutable point ledger amounts, and append-only audit logs", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const ts = nowDate();
+
+  // Save profile with AR language & dark theme & onboardingCompleted
+  await assertSucceeds(
+    aliceDb.collection("users").doc(ALICE_UID).set({
+      userId: ALICE_UID,
+      displayName: "Laila Mansour",
+      preferredLanguage: "AR",
+      darkTheme: true,
+      onboardingCompleted: true,
+      savedChallengeIds: ["ch_smart_city"],
+      points: 150,
+      streakDays: 1,
+      createdAt: ts,
+      updatedAt: ts,
+    })
+  );
+
+  // Deterministic badge write succeeds, and pointsAwarded cannot be tampered with afterwards
+  const badgeRef = aliceDb.collection("users").doc(ALICE_UID).collection("badges").doc("first_challenge");
+  await assertSucceeds(
+    badgeRef.set({
+      userId: ALICE_UID,
+      badgeId: "first_challenge",
+      title: "First Challenge",
+      description: "Completed first verified practical challenge",
+      criteria: "Submit and pass 1 challenge",
+      pointsAwarded: 150,
+      isShareable: true,
+      unlockedAt: ts,
+    })
+  );
+  await assertFails(badgeRef.update({ pointsAwarded: 9999 }));
+  await assertSucceeds(badgeRef.update({ isShareable: false }));
+
+  // Ledger amount is immutable after creation
+  const txRef = aliceDb.collection("users").doc(ALICE_UID).collection("pointLedger").doc("tx_first_challenge");
+  await assertSucceeds(
+    txRef.set({
+      userId: ALICE_UID,
+      txId: "tx_first_challenge",
+      sourceType: "BADGE",
+      sourceId: "first_challenge",
+      title: "Unlocked First Challenge Badge",
+      points: 150,
+      status: "APPROVED",
+      reason: "Completed 1st challenge verification",
+      createdAt: ts,
+    })
+  );
+  await assertFails(txRef.update({ points: 5000 }));
+
+  // Audit log is append-only (no update)
+  const auditRef = aliceDb.collection("users").doc(ALICE_UID).collection("auditLogs").doc("log_1");
+  await assertSucceeds(
+    auditRef.set({
+      userId: ALICE_UID,
+      actionType: "BADGE_UNLOCKED",
+      summary: "Unlocked First Challenge (+150 pts)",
+      actorRole: "LEARNER",
+      createdAt: ts,
+    })
+  );
+  await assertFails(auditRef.update({ summary: "Tampered" }));
 });
 
 test("Community posts, nested comments, and best-answer authorization", async () => {
@@ -103,9 +174,7 @@ test("Community posts, nested comments, and best-answer authorization", async ()
     })
   );
 
-  // Query aligned with rule
   await assertSucceeds(bobDb.collection("communityPosts").where("isHidden", "==", false).get());
-  // Unfiltered query rejected
   await assertFails(bobDb.collection("communityPosts").get());
 
   const commentRef = bobDb.collection("communityPosts").doc("post_1").collection("comments").doc("c_1");
@@ -124,9 +193,7 @@ test("Community posts, nested comments, and best-answer authorization", async ()
     })
   );
 
-  // Bob cannot mark his own comment as best answer (only post author Alice can)
   await assertFails(commentRef.update({ isBestAnswer: true }));
-  // Alice (post author) can mark Bob's comment as best answer
   await assertSucceeds(
     aliceDb.collection("communityPosts").doc("post_1").collection("comments").doc("c_1").update({
       isBestAnswer: true,
@@ -176,7 +243,6 @@ test("Teams and member-scoped sprint tasks", async () => {
     })
   );
 
-  // Bob (not a member yet) cannot read Alice's team task directly, list all tasks, or spoof a task inside Alice's team
   await assertFails(bobDb.collection("teams").doc("team_1").collection("tasks").doc("task_1").get());
   await assertFails(bobDb.collection("teams").doc("team_1").collection("tasks").get());
   await assertFails(
@@ -202,9 +268,9 @@ test("Reports are append-only and scoped to reporter", async () => {
   await assertSucceeds(
     reportRef.set({
       reporterId: ALICE_UID,
-      targetType: "POST",
-      targetId: "post_1",
-      reason: "Contains exposed test API key in snippet.",
+      targetType: "AI_RESPONSE",
+      targetId: "agent_session_1",
+      reason: "AI answer gave full solution during assessment challenge.",
       status: "OPEN",
       createdAt: ts,
     })
@@ -212,4 +278,40 @@ test("Reports are append-only and scoped to reporter", async () => {
 
   await assertFails(bobDb.collection("reports").doc("rep_1").get());
   await assertFails(reportRef.update({ status: "REVIEWED" }));
+});
+
+test("Unified cross-device sync collections reject unauthenticated clients and enforce valid schemas", async () => {
+  const unauthDb = testEnv.unauthenticatedContext().firestore();
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+
+  await assertFails(unauthDb.collection("projectBriefs").get());
+  await assertFails(unauthDb.collection("workSubmissions").get());
+  await assertFails(unauthDb.collection("platformAccounts").doc("acc_student_demo").collection("sessions").get());
+
+  await assertSucceeds(
+    aliceDb.collection("projectBriefs").doc("brief_sync_1").set({
+      id: "brief_sync_1",
+      companyId: "comp_nilegrid",
+      title: "Cross-Device Sync Analytics",
+      approvalStatus: "APPROVED",
+    })
+  );
+
+  await assertFails(
+    aliceDb.collection("workSubmissions").doc("sub_bad").set({
+      id: "sub_bad",
+      status: "VERIFIED",
+      score: 999, // invalid score > 100
+    })
+  );
+
+  await assertSucceeds(
+    aliceDb.collection("platformAccounts").doc("acc_student_demo").collection("sessions").doc("sess_laptop_1").set({
+      id: "sess_laptop_1",
+      accountId: "acc_student_demo",
+      deviceType: "DESKTOP_LAPTOP",
+      deviceLabel: "Laptop 1366x768",
+      revoked: false,
+    })
+  );
 });

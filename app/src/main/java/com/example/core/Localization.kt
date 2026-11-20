@@ -27,14 +27,24 @@ data class AppStrings(
     val welcomeSubtitle: String,
     val getStarted: String,
     val signInGoogle: String,
+    val continueAsGuest: String,
+    val guestBannerTitle: String,
+    val guestLockedReason: String,
     val languageToggleLabel: String,
 
-    // Bottom Nav
+    // Bottom Nav & Common Actions
     val navHome: String,
     val navDiscover: String,
     val navCommunity: String,
     val navTeams: String,
     val navPassport: String,
+    val backLabel: String,
+    val closeLabel: String,
+    val cancelLabel: String,
+    val confirmLabel: String,
+    val saveLabel: String,
+    val offlineBannerText: String,
+    val demoCatalogLabel: String,
 
     // Roles & Levels
     val roleLearner: String,
@@ -73,6 +83,23 @@ data class AppStrings(
     val activeChallenges: String,
     val pointsLabel: String,
     val streakLabel: String,
+
+    // Badges & Progression
+    val badgesTitle: String,
+    val unlockedBadgesLabel: String,
+    val lockedBadgesLabel: String,
+    val auditLogTitle: String,
+
+    // AI Agent
+    val aiAgentTitle: String,
+    val aiAgentAskHint: String,
+    val aiAgentDataUsedPrefix: String,
+    val aiAgentBoundariesPrefix: String,
+    val aiAgentUnavailable: String,
+    val aiAgentConfirmActionTitle: String,
+    val aiAgentReportLabel: String,
+    val aiAgentPersonalizationToggle: String,
+    val aiAgentContextToggle: String,
 
     // Discover & Challenges
     val discoverTitle: String,
@@ -121,6 +148,8 @@ data class AppStrings(
     val reportContent: String,
     val verifiedBadge: String,
     val selfClaimedBadge: String,
+    val replyLabel: String,
+    val helpfulLabel: String,
 
     // Teams
     val teamsTitle: String,
@@ -131,6 +160,8 @@ data class AppStrings(
     val sprintBoard: String,
     val rewardSplitTitle: String,
     val teamChat: String,
+    val membersLabel: String,
+    val needRolePrefix: String,
 
     // Leaderboards & Passport
     val leaderboardTitle: String,
@@ -143,13 +174,17 @@ data class AppStrings(
     val skillEvidenceGraph: String,
     val walletTitle: String,
 
-    // Utilities & Governance
+    // Utilities, Account Settings & Governance
     val searchPlaceholder: String,
     val notificationsTitle: String,
     val companyDashTitle: String,
     val mentorDashTitle: String,
     val directorAdminTitle: String,
     val privacySettingsTitle: String,
+    val accountSettingsTitle: String,
+    val deleteAccountTitle: String,
+    val deleteAccountBody: String,
+    val deleteAccountAction: String,
     val blueprintTitle: String,
     val statePreviewTitle: String,
     val loadingText: String,
@@ -167,6 +202,9 @@ val EnStrings = AppStrings(
     welcomeSubtitle = "Bridge your skills to real-world challenges, team sprints, ethical reverse engineering, and verified experience.",
     getStarted = "Get Started",
     signInGoogle = "Continue with Google",
+    continueAsGuest = "Continue as Guest (Preview)",
+    guestBannerTitle = "Guest Preview Mode — Sign in with Google to save progress, earn badges & submit solutions.",
+    guestLockedReason = "This private action requires signing in with Google so your verified evidence stays safe.",
     languageToggleLabel = "عربي",
 
     navHome = "Home",
@@ -174,6 +212,13 @@ val EnStrings = AppStrings(
     navCommunity = "Community",
     navTeams = "Teams",
     navPassport = "Passport",
+    backLabel = "Back",
+    closeLabel = "Close",
+    cancelLabel = "Cancel",
+    confirmLabel = "Confirm",
+    saveLabel = "Save",
+    offlineBannerText = "Offline mode — showing cached data. Cloud sync resumes when connected.",
+    demoCatalogLabel = "Demo Reference",
 
     roleLearner = "Learner",
     roleMentor = "Mentor",
@@ -209,6 +254,21 @@ val EnStrings = AppStrings(
     activeChallenges = "Active Challenges & Deadlines",
     pointsLabel = "Points",
     streakLabel = "Day Streak",
+
+    badgesTitle = "SkillBridge Badges",
+    unlockedBadgesLabel = "Unlocked",
+    lockedBadgesLabel = "Locked",
+    auditLogTitle = "Verification & Activity Log",
+
+    aiAgentTitle = "SkillBridge AI Agent",
+    aiAgentAskHint = "Ask for hints, sprint breakdown, rubric checks, or gap review...",
+    aiAgentDataUsedPrefix = "Data Used:",
+    aiAgentBoundariesPrefix = "Boundaries:",
+    aiAgentUnavailable = "AI service is currently unavailable or offline. Verify connection and retry.",
+    aiAgentConfirmActionTitle = "Confirm Agent Action",
+    aiAgentReportLabel = "Report AI Response",
+    aiAgentPersonalizationToggle = "Personalized AI Guidance",
+    aiAgentContextToggle = "Share Active Screen Context with AI",
 
     discoverTitle = "Discover Hub",
     filterAll = "All",
@@ -254,6 +314,8 @@ val EnStrings = AppStrings(
     reportContent = "Report",
     verifiedBadge = "Verified Skill",
     selfClaimedBadge = "Self-Claimed",
+    replyLabel = "Reply",
+    helpfulLabel = "helpful",
 
     teamsTitle = "Teams & Sprints",
     myTeams = "My Teams",
@@ -263,6 +325,8 @@ val EnStrings = AppStrings(
     sprintBoard = "Sprint Board",
     rewardSplitTitle = "Transparent Points & Reward Split",
     teamChat = "Team Feed",
+    membersLabel = "Members",
+    needRolePrefix = "Need:",
 
     leaderboardTitle = "Leaderboards",
     top100Title = "Top 100 Rankings",
@@ -280,6 +344,10 @@ val EnStrings = AppStrings(
     mentorDashTitle = "Mentor Review Studio",
     directorAdminTitle = "Director & Moderation",
     privacySettingsTitle = "Privacy & UI States",
+    accountSettingsTitle = "Account & Session Settings",
+    deleteAccountTitle = "Delete Account & Data",
+    deleteAccountBody = "Permanently deletes your SkillBridge profile, goals, submissions, badges, and ledger records from Firestore. This cannot be undone.",
+    deleteAccountAction = "Delete My Account",
     blueprintTitle = "Product Architecture & MVP",
     statePreviewTitle = "UI State Inspector",
     loadingText = "Syncing verified SkillBridge data...",
@@ -297,6 +365,9 @@ val ArStrings = AppStrings(
     welcomeSubtitle = "انتقل من التعلم إلى التطبيق العملي، العمل الجماعي، الهندسة العكسية الأخلاقية، وسجل الخبرة الموثّق.",
     getStarted = "ابدأ الآن",
     signInGoogle = "المتابعة عبر Google",
+    continueAsGuest = "معاينة كزائر (بدون حفظ)",
+    guestBannerTitle = "وضع المعاينة للزائر — سجّل بحساب Google لحفظ تقدّمك وكسب الشارات ورفع الحلول.",
+    guestLockedReason = "يتطلب هذا الإجراء الخاص تسجيل الدخول بحساب Google لحفظ أدلتك الموثّقة بأمان.",
     languageToggleLabel = "EN",
 
     navHome = "الرئيسية",
@@ -304,6 +375,13 @@ val ArStrings = AppStrings(
     navCommunity = "المجتمع",
     navTeams = "الفرق",
     navPassport = "السجل",
+    backLabel = "رجوع",
+    closeLabel = "إغلاق",
+    cancelLabel = "إلغاء",
+    confirmLabel = "تأكيد",
+    saveLabel = "حفظ",
+    offlineBannerText = "أنت غير متصل حاليًا — يتم عرض البيانات المحفوظة، وستُزامن التغييرات عند عودة الاتصال.",
+    demoCatalogLabel = "نموذج مرجعي",
 
     roleLearner = "متعلم / مطور",
     roleMentor = "مرشد",
@@ -339,6 +417,21 @@ val ArStrings = AppStrings(
     activeChallenges = "التحديات والمواعيد النشطة",
     pointsLabel = "نقطة",
     streakLabel = "أيام متتالية",
+
+    badgesTitle = "شارات SkillBridge",
+    unlockedBadgesLabel = "مفتوحة",
+    lockedBadgesLabel = "مقفلة",
+    auditLogTitle = "سجل التوثيق والنشاط",
+
+    aiAgentTitle = "المساعد الذكي SkillBridge",
+    aiAgentAskHint = "اسأل عن تلميح تقني، تقسيم مهام الفريق، أو مراجعة معايير التقييم...",
+    aiAgentDataUsedPrefix = "البيانات المستخدمة:",
+    aiAgentBoundariesPrefix = "حدود المساعد:",
+    aiAgentUnavailable = "خدمة الذكاء الاصطناعي غير متاحة حاليًا أو لا يوجد اتصال. تحقّق من الشبكة وأعد المحاولة.",
+    aiAgentConfirmActionTitle = "تأكيد إجراء المساعد الذكي",
+    aiAgentReportLabel = "الإبلاغ عن رد AI",
+    aiAgentPersonalizationToggle = "تخصيص الذكاء الاصطناعي حسب مستواك",
+    aiAgentContextToggle = "مشاركة سياق الشاشة الحالية مع AI",
 
     discoverTitle = "مركز الاستكشاف",
     filterAll = "الكل",
@@ -384,6 +477,8 @@ val ArStrings = AppStrings(
     reportContent = "إبلاغ",
     verifiedBadge = "مهارة موثّقة",
     selfClaimedBadge = "مُصرّح بها ذاتيًا",
+    replyLabel = "رد",
+    helpfulLabel = "مفيد",
 
     teamsTitle = "الفرق والسباقات",
     myTeams = "فرقي",
@@ -393,6 +488,8 @@ val ArStrings = AppStrings(
     sprintBoard = "لوحة المهام",
     rewardSplitTitle = "تقسيم النقاط والمكافآت بشفافية",
     teamChat = "ساحة الفريق",
+    membersLabel = "أعضاء",
+    needRolePrefix = "مطلوب:",
 
     leaderboardTitle = "لوحات التصنيف",
     top100Title = "أفضل 100 متنافس",
@@ -410,6 +507,10 @@ val ArStrings = AppStrings(
     mentorDashTitle = "استوديو تقييم المرشد",
     directorAdminTitle = "إدارة القادة والإشراف",
     privacySettingsTitle = "الخصوصية وحالات الواجهة",
+    accountSettingsTitle = "إعدادات الحساب والجلسة",
+    deleteAccountTitle = "حذف الحساب والبيانات",
+    deleteAccountBody = "سيتم حذف ملفك المهني، أهدافك، تسليماتك، شاراتك، وسجل النقاط من Firestore بشكل نهائي ولا يمكن التراجع.",
+    deleteAccountAction = "حذف حسابي نهائيًا",
     blueprintTitle = "خارطة المنتج والـ MVP",
     statePreviewTitle = "معاينة حالات الشاشة",
     loadingText = "جارٍ مزامنة بياناتك الموثّقة...",
@@ -425,3 +526,108 @@ val LocalAppLanguage = staticCompositionLocalOf { AppLanguage.EN }
 
 fun AppLanguage.layoutDirection(): LayoutDirection =
     if (this == AppLanguage.AR) LayoutDirection.Rtl else LayoutDirection.Ltr
+
+fun localizedDomain(domain: String, lang: AppLanguage): String {
+    if (lang == AppLanguage.EN) return domain
+    return when (domain) {
+        "All" -> "الكل"
+        "Backend & Cloud" -> "الأنظمة الخلفية والسحابة"
+        "Data Science & AI" -> "علوم البيانات والذكاء الاصطناعي"
+        "Mobile & Android" -> "تطبيقات الموبايل والأندرويد"
+        "Cybersecurity" -> "الأمن السيبراني"
+        "Product & UX" -> "المنتجات وتجربة المستخدم"
+        else -> domain
+    }
+}
+
+fun localizedCareerLevel(level: String, lang: AppLanguage): String {
+    if (lang == AppLanguage.EN) return level
+    return when (level) {
+        "Junior" -> "مبتدئ (Junior)"
+        "Mid-level" -> "متوسط (Mid-level)"
+        "Senior" -> "خبير (Senior)"
+        "Director / Leadership" -> "قيادي (Director)"
+        else -> level
+    }
+}
+
+fun localizedSubmissionStatus(status: String, lang: AppLanguage): String {
+    if (lang == AppLanguage.EN) return status.replace("_", " ")
+    return when (status) {
+        "PENDING" -> "قيد الانتظار"
+        "UNDER_REVIEW" -> "قيد التقييم"
+        "VERIFIED" -> "موثّق"
+        "REJECTED" -> "مرفوض"
+        "DISPUTED" -> "قيد المراجعة / اعتراض"
+        "APPROVED" -> "معتمد"
+        "PAID" -> "تم الصرف"
+        else -> status
+    }
+}
+
+fun localizedPostType(postType: String, lang: AppLanguage): String {
+    if (lang == AppLanguage.EN) return postType
+    return when (postType) {
+        "Technical Question" -> "سؤال تقني"
+        "Help Request" -> "طلب مساعدة"
+        "Tutorial" -> "شرح تعليمي"
+        "Team Ad" -> "إعلان فريق"
+        "Code Review" -> "مراجعة كود"
+        "Post-Contest Solution" -> "حل بعد المسابقة"
+        "Suggest Challenge" -> "اقتراح تحدٍ"
+        else -> postType
+    }
+}
+
+fun localizedLeaderboardScope(scope: String, lang: AppLanguage): String {
+    if (lang == AppLanguage.EN) return scope
+    return when (scope) {
+        "Global" -> "العالمي"
+        "MENA" -> "الشرق الأوسط وشمال أفريقيا"
+        "Egypt" -> "مصر"
+        "Saudi Arabia" -> "السعودية"
+        "UAE" -> "الإمارات"
+        "Jordan" -> "الأردن"
+        "Morocco" -> "المغرب"
+        "Junior" -> "مبتدئ"
+        "Mid-level" -> "متوسط"
+        "Senior" -> "خبير"
+        "Teams" -> "الفرق"
+        "Contests" -> "المسابقات"
+        "Community" -> "المجتمع"
+        else -> scope
+    }
+}
+
+fun localizedNotificationCategory(category: String, lang: AppLanguage): String {
+    if (lang == AppLanguage.EN) return category
+    return when (category) {
+        "All" -> "الكل"
+        "Evaluation" -> "التقييمات"
+        "Contests" -> "المسابقات"
+        "Teams" -> "الفرق"
+        "Rewards" -> "المكافآت"
+        else -> category
+    }
+}
+
+fun localizedChannelName(channel: String, lang: AppLanguage): String {
+    if (lang == AppLanguage.EN) return channel
+    return when (channel) {
+        "In-App" -> "تنبيهات داخل التطبيق"
+        "Push" -> "الإشعارات الفورية"
+        "Email Digest" -> "ملخص البريد الإلكتروني"
+        "Team Mentions" -> "إشارات الفريق"
+        else -> channel
+    }
+}
+
+fun localizedTaskStatus(status: String, lang: AppLanguage): String {
+    if (lang == AppLanguage.EN) return status.replace("_", " ")
+    return when (status) {
+        "TODO" -> "قيد الانتظار"
+        "IN_PROGRESS" -> "قيد التنفيذ"
+        "DONE" -> "مكتمل"
+        else -> status
+    }
+}

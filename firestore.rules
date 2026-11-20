@@ -55,6 +55,20 @@ service cloud.firestore {
              (!('streakDays' in data) || (data.streakDays is int && data.streakDays >= 0 && data.streakDays <= 3650)) &&
              (!('passportPublic' in data) || data.passportPublic is bool) &&
              (!('showRepoLinks' in data) || data.showRepoLinks is bool) &&
+             (!('preferredLanguage' in data) || data.preferredLanguage in ['EN', 'AR']) &&
+             (!('darkTheme' in data) || data.darkTheme is bool) &&
+             (!('onboardingCompleted' in data) || data.onboardingCompleted is bool) &&
+             (!('savedChallengeIds' in data) || isValidStringList(data.savedChallengeIds, 50)) &&
+             (!('savedPostIds' in data) || isValidStringList(data.savedPostIds, 50)) &&
+             (!('followedTags' in data) || isValidStringList(data.followedTags, 30)) &&
+             (!('mutedAuthors' in data) || isValidStringList(data.mutedAuthors, 30)) &&
+             (!('aiPersonalizationEnabled' in data) || data.aiPersonalizationEnabled is bool) &&
+             (!('aiContextSharingEnabled' in data) || data.aiContextSharingEnabled is bool) &&
+             (!('emailNotifications' in data) || data.emailNotifications is bool) &&
+             (!('pushNotifications' in data) || data.pushNotifications is bool) &&
+             (!('teamMentionsNotifications' in data) || data.teamMentionsNotifications is bool) &&
+             (!('lastRoute' in data) || isValidBoundedString(data.lastRoute, 0, 64)) &&
+             (!('verifiedSkillCount' in data) || (data.verifiedSkillCount is int && data.verifiedSkillCount >= 0 && data.verifiedSkillCount <= 500)) &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -102,7 +116,7 @@ service cloud.firestore {
     function isValidCoachMessage(data, userId) {
       return data.userId == userId &&
              isValidId(data.goalId) &&
-             data.mode in ['INTERVIEW', 'COACH'] &&
+             data.mode in ['INTERVIEW', 'COACH', 'AGENT'] &&
              data.sender in ['USER', 'AI'] &&
              isValidBoundedString(data.content, 1, 6000) &&
              data.createdAt is timestamp && data.createdAt <= request.time;
@@ -118,16 +132,51 @@ service cloud.firestore {
              isValidStringList(data.skillsApplied, 20) &&
              (!('repoOrDemoUrl' in data) || isValidBoundedString(data.repoOrDemoUrl, 0, 300)) &&
              isValidBoundedString(data.understandingReport, 1, 3000) &&
-             data.status in ['PENDING', 'UNDER_REVIEW', 'VERIFIED', 'DISPUTED'] &&
+             data.status in ['PENDING', 'UNDER_REVIEW', 'VERIFIED', 'REJECTED', 'DISPUTED'] &&
+             (!('rejectionReason' in data) || isValidBoundedString(data.rejectionReason, 0, 500)) &&
              (!('mentorFeedback' in data) || isValidBoundedString(data.mentorFeedback, 0, 1000)) &&
              data.score is int && data.score >= 0 && data.score <= 100 &&
              data.pointsAwarded is int && data.pointsAwarded >= 0 && data.pointsAwarded <= 10000 &&
              (!('rewardAmount' in data) || isValidBoundedString(data.rewardAmount, 0, 40)) &&
-             data.rewardStatus in ['PENDING', 'UNDER_REVIEW', 'APPROVED', 'PAID', 'DISPUTED'] &&
+             data.rewardStatus in ['PENDING', 'UNDER_REVIEW', 'APPROVED', 'PAID', 'REJECTED', 'DISPUTED'] &&
              data.isPublicOnPassport is bool &&
              isValidBoundedString(data.verificationCode, 1, 64) &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidUserBadge(data, userId, badgeId) {
+      return data.userId == userId &&
+             data.badgeId == badgeId &&
+             isValidId(data.badgeId) &&
+             isValidBoundedString(data.title, 1, 100) &&
+             isValidBoundedString(data.description, 1, 300) &&
+             isValidBoundedString(data.criteria, 1, 300) &&
+             data.pointsAwarded is int && data.pointsAwarded >= 0 && data.pointsAwarded <= 5000 &&
+             data.isShareable is bool &&
+             data.unlockedAt is timestamp && data.unlockedAt <= request.time;
+    }
+
+    function isValidPointLedgerEntry(data, userId, txId) {
+      return data.userId == userId &&
+             data.txId == txId &&
+             isValidId(data.txId) &&
+             data.sourceType in ['CHALLENGE', 'CONTEST', 'REVERSE_ENG', 'BADGE', 'COMMUNITY', 'TEAM', 'MENTOR'] &&
+             isValidBoundedString(data.sourceId, 1, 128) &&
+             isValidBoundedString(data.title, 1, 150) &&
+             data.points is int && data.points >= 0 && data.points <= 10000 &&
+             (!('cashAmount' in data) || isValidBoundedString(data.cashAmount, 0, 40)) &&
+             data.status in ['PENDING', 'UNDER_REVIEW', 'APPROVED', 'PAID', 'REJECTED', 'DISPUTED'] &&
+             isValidBoundedString(data.reason, 1, 300) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidAuditLog(data, userId) {
+      return data.userId == userId &&
+             isValidBoundedString(data.actionType, 1, 60) &&
+             isValidBoundedString(data.summary, 1, 300) &&
+             isValidBoundedString(data.actorRole, 1, 40) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
     }
 
     function isValidCommunityPost(data) {
@@ -210,7 +259,11 @@ service cloud.firestore {
                          'userId', 'displayName', 'currentRole', 'experienceLevel', 'country',
                          'timezone', 'domain', 'careerLevel', 'planTier', 'roleMode', 'weeklyHours',
                          'currentSkills', 'targetSkills', 'goalsSummary', 'points', 'streakDays',
-                         'passportPublic', 'showRepoLinks', 'createdAt', 'updatedAt'
+                         'passportPublic', 'showRepoLinks', 'preferredLanguage', 'darkTheme',
+                         'onboardingCompleted', 'savedChallengeIds', 'savedPostIds', 'followedTags',
+                         'mutedAuthors', 'aiPersonalizationEnabled', 'aiContextSharingEnabled',
+                         'emailNotifications', 'pushNotifications', 'teamMentionsNotifications',
+                         'lastRoute', 'verifiedSkillCount', 'createdAt', 'updatedAt'
                        ]) &&
                        isValidUserProfile(incoming(), userId);
 
@@ -223,7 +276,11 @@ service cloud.firestore {
                          'displayName', 'currentRole', 'experienceLevel', 'country',
                          'timezone', 'domain', 'careerLevel', 'planTier', 'roleMode', 'weeklyHours',
                          'currentSkills', 'targetSkills', 'goalsSummary', 'points', 'streakDays',
-                         'passportPublic', 'showRepoLinks', 'updatedAt'
+                         'passportPublic', 'showRepoLinks', 'preferredLanguage', 'darkTheme',
+                         'onboardingCompleted', 'savedChallengeIds', 'savedPostIds', 'followedTags',
+                         'mutedAuthors', 'aiPersonalizationEnabled', 'aiContextSharingEnabled',
+                         'emailNotifications', 'pushNotifications', 'teamMentionsNotifications',
+                         'lastRoute', 'verifiedSkillCount', 'updatedAt'
                        ]);
 
       allow delete: if isOwner(userId) && isValidId(userId);
@@ -320,7 +377,7 @@ service cloud.firestore {
         allow create: if isOwner(userId) &&
                          isValidId(submissionId) &&
                          incoming().keys().hasAll(['userId', 'challengeId', 'challengeTitle', 'companyName', 'category', 'roleInTeam', 'skillsApplied', 'understandingReport', 'status', 'score', 'pointsAwarded', 'rewardStatus', 'isPublicOnPassport', 'verificationCode', 'createdAt', 'updatedAt']) &&
-                         incoming().keys().hasOnly(['userId', 'challengeId', 'challengeTitle', 'companyName', 'category', 'roleInTeam', 'skillsApplied', 'repoOrDemoUrl', 'understandingReport', 'status', 'mentorFeedback', 'score', 'pointsAwarded', 'rewardStatus', 'rewardAmount', 'isPublicOnPassport', 'verificationCode', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'challengeId', 'challengeTitle', 'companyName', 'category', 'roleInTeam', 'skillsApplied', 'repoOrDemoUrl', 'understandingReport', 'status', 'rejectionReason', 'mentorFeedback', 'score', 'pointsAwarded', 'rewardStatus', 'rewardAmount', 'isPublicOnPassport', 'verificationCode', 'createdAt', 'updatedAt']) &&
                          isValidSubmission(incoming(), userId);
 
         allow update: if isOwner(userId) &&
@@ -331,10 +388,69 @@ service cloud.firestore {
                          incoming().createdAt == existing().createdAt &&
                          (
                            incoming().diff(existing()).affectedKeys().hasOnly(['isPublicOnPassport', 'updatedAt']) ||
-                           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'mentorFeedback', 'score', 'pointsAwarded', 'rewardStatus', 'updatedAt'])
+                           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectionReason', 'mentorFeedback', 'score', 'pointsAwarded', 'rewardStatus', 'updatedAt'])
                          );
 
         allow delete: if isOwner(userId) && isValidId(submissionId);
+      }
+
+      match /badges/{badgeId} {
+        allow get: if isOwner(userId) && isValidId(badgeId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(badgeId) &&
+                         incoming().keys().hasAll(['userId', 'badgeId', 'title', 'description', 'criteria', 'pointsAwarded', 'isShareable', 'unlockedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'badgeId', 'title', 'description', 'criteria', 'pointsAwarded', 'isShareable', 'unlockedAt']) &&
+                         isValidUserBadge(incoming(), userId, badgeId);
+
+        // Idempotent badge: once earned, never duplicated or mutated (only shareable flag or delete on account purge)
+        allow update: if isOwner(userId) &&
+                         isValidId(badgeId) &&
+                         isValidUserBadge(incoming(), userId, badgeId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().badgeId == existing().badgeId &&
+                         incoming().unlockedAt == existing().unlockedAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['isShareable']);
+
+        allow delete: if isOwner(userId) && isValidId(badgeId);
+      }
+
+      match /pointLedger/{txId} {
+        allow get: if isOwner(userId) && isValidId(txId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(txId) &&
+                         incoming().keys().hasAll(['userId', 'txId', 'sourceType', 'sourceId', 'title', 'points', 'status', 'reason', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'txId', 'sourceType', 'sourceId', 'title', 'points', 'cashAmount', 'status', 'reason', 'createdAt']) &&
+                         isValidPointLedgerEntry(incoming(), userId, txId);
+
+        // Ledger amounts are immutable; only status/reason may transition during review/payout
+        allow update: if isOwner(userId) &&
+                         isValidId(txId) &&
+                         isValidPointLedgerEntry(incoming(), userId, txId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().txId == existing().txId &&
+                         incoming().points == existing().points &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reason']);
+
+        allow delete: if isOwner(userId) && isValidId(txId);
+      }
+
+      match /auditLogs/{logId} {
+        allow get: if isOwner(userId) && isValidId(logId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(logId) &&
+                         incoming().keys().hasAll(['userId', 'actionType', 'summary', 'actorRole', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'actionType', 'summary', 'actorRole', 'createdAt']) &&
+                         isValidAuditLog(incoming(), userId);
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(logId);
       }
     }
 
@@ -456,6 +572,102 @@ service cloud.firestore {
                        isValidReport(incoming());
 
       allow update, delete: if false;
+    }
+
+    // --- Unified Mobile & Desktop Cross-Device Platform Collections ---
+
+    match /platformAccounts/{accountId} {
+      allow get, list: if isSignedIn() && isValidId(accountId);
+      allow create, update: if isSignedIn() &&
+                               isValidId(accountId) &&
+                               incoming().id == accountId &&
+                               incoming().role in ['PLATFORM_ADMIN', 'STUDENT', 'COMPANY', 'COMPANY_DIRECTOR'] &&
+                               isValidBoundedString(incoming().loginId, 2, 80) &&
+                               isValidBoundedString(incoming().displayName, 1, 100);
+      allow delete: if false;
+
+      match /sessions/{sessionId} {
+        allow get, list: if isSignedIn() && isValidId(sessionId);
+        allow create, update: if isSignedIn() &&
+                                 isValidId(sessionId) &&
+                                 incoming().accountId == accountId &&
+                                 incoming().deviceType in ['MOBILE', 'DESKTOP_LAPTOP'] &&
+                                 incoming().revoked is bool;
+        allow delete: if isSignedIn() && isValidId(sessionId);
+      }
+    }
+
+    match /companies/{companyId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn() &&
+                               isValidId(companyId) &&
+                               incoming().id == companyId &&
+                               incoming().verificationStatus in ['PENDING', 'VERIFIED', 'REJECTED'] &&
+                               incoming().verificationTier in ['UNVERIFIED', 'BASIC', 'BUSINESS', 'TRUSTED'];
+      allow delete: if false;
+    }
+
+    match /projectBriefs/{briefId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn() &&
+                               isValidId(briefId) &&
+                               incoming().id == briefId &&
+                               incoming().approvalStatus in ['PENDING_APPROVAL', 'APPROVED', 'ACTIVE', 'COMPLETED', 'REJECTED'] &&
+                               isValidBoundedString(incoming().title, 3, 160);
+      allow delete: if false;
+    }
+
+    match /projectApplications/{appId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn() &&
+                               isValidId(appId) &&
+                               incoming().id == appId &&
+                               incoming().status in ['APPLIED', 'SHORTLISTED', 'ACCEPTED', 'REJECTED'];
+      allow delete: if false;
+    }
+
+    match /projectTasks/{taskId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn() &&
+                               isValidId(taskId) &&
+                               incoming().id == taskId &&
+                               incoming().status in ['TODO', 'IN_PROGRESS', 'DONE'];
+      allow delete: if false;
+    }
+
+    match /workSubmissions/{subId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn() &&
+                               isValidId(subId) &&
+                               incoming().id == subId &&
+                               incoming().status in ['PENDING_REVIEW', 'VERIFIED', 'REVISION_REQUESTED', 'REJECTED'] &&
+                               incoming().score is int &&
+                               incoming().score >= 0 && incoming().score <= 100;
+      allow delete: if false;
+    }
+
+    match /platformNotifications/{notifId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn() &&
+                               isValidId(notifId) &&
+                               incoming().id == notifId &&
+                               incoming().isRead is bool;
+      allow delete: if false;
+    }
+
+    match /platformActivities/{activityId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(activityId) && incoming().id == activityId;
+      allow update, delete: if false;
+    }
+
+    match /moderationReports/{reportId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn() &&
+                               isValidId(reportId) &&
+                               incoming().id == reportId &&
+                               incoming().status in ['OPEN', 'RESOLVED', 'DISMISSED'];
+      allow delete: if false;
     }
   }
 }

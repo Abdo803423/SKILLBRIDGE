@@ -2,7 +2,7 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "Authenticated learner/mentor/company profile storing career identity, skills, preferences, and privacy flags.",
+      "description": "Authenticated learner/mentor/company profile storing career identity, persisted preferences, skills, progression, and privacy flags.",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
@@ -23,6 +23,20 @@
         "streakDays": { "type": "integer" },
         "passportPublic": { "type": "boolean" },
         "showRepoLinks": { "type": "boolean" },
+        "preferredLanguage": { "type": "string", "enum": ["EN", "AR"] },
+        "darkTheme": { "type": "boolean" },
+        "onboardingCompleted": { "type": "boolean" },
+        "savedChallengeIds": { "type": "array" },
+        "savedPostIds": { "type": "array" },
+        "followedTags": { "type": "array" },
+        "mutedAuthors": { "type": "array" },
+        "aiPersonalizationEnabled": { "type": "boolean" },
+        "aiContextSharingEnabled": { "type": "boolean" },
+        "emailNotifications": { "type": "boolean" },
+        "pushNotifications": { "type": "boolean" },
+        "teamMentionsNotifications": { "type": "boolean" },
+        "lastRoute": { "type": "string" },
+        "verifiedSkillCount": { "type": "integer" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -85,12 +99,12 @@
     },
     "CoachMessage": {
       "title": "CoachMessage",
-      "description": "Saved AI career coach or mock interview message.",
+      "description": "Saved AI agent, career coach, or mock interview message.",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
         "goalId": { "type": "string" },
-        "mode": { "type": "string", "enum": ["INTERVIEW", "COACH"] },
+        "mode": { "type": "string", "enum": ["INTERVIEW", "COACH", "AGENT"] },
         "sender": { "type": "string", "enum": ["USER", "AI"] },
         "content": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
@@ -111,18 +125,66 @@
         "skillsApplied": { "type": "array" },
         "repoOrDemoUrl": { "type": "string" },
         "understandingReport": { "type": "string" },
-        "status": { "type": "string", "enum": ["PENDING", "UNDER_REVIEW", "VERIFIED", "DISPUTED"] },
+        "status": { "type": "string", "enum": ["PENDING", "UNDER_REVIEW", "VERIFIED", "REJECTED", "DISPUTED"] },
+        "rejectionReason": { "type": "string" },
         "mentorFeedback": { "type": "string" },
         "score": { "type": "integer" },
         "pointsAwarded": { "type": "integer" },
         "rewardAmount": { "type": "string" },
-        "rewardStatus": { "type": "string", "enum": ["PENDING", "UNDER_REVIEW", "APPROVED", "PAID", "DISPUTED"] },
+        "rewardStatus": { "type": "string", "enum": ["PENDING", "UNDER_REVIEW", "APPROVED", "PAID", "REJECTED", "DISPUTED"] },
         "isPublicOnPassport": { "type": "boolean" },
         "verificationCode": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "challengeId", "challengeTitle", "companyName", "category", "roleInTeam", "skillsApplied", "understandingReport", "status", "score", "pointsAwarded", "rewardStatus", "isPublicOnPassport", "verificationCode", "createdAt", "updatedAt"]
+    },
+    "UserBadge": {
+      "title": "UserBadge",
+      "description": "Earned SkillBridge badge stored with deterministic ID to prevent duplicate awarding.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "badgeId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "criteria": { "type": "string" },
+        "pointsAwarded": { "type": "integer" },
+        "isShareable": { "type": "boolean" },
+        "unlockedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "badgeId", "title", "description", "criteria", "pointsAwarded", "isShareable", "unlockedAt"]
+    },
+    "PointLedgerEntry": {
+      "title": "PointLedgerEntry",
+      "description": "Idempotent transaction ledger recording why points or rewards were granted.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "txId": { "type": "string" },
+        "sourceType": { "type": "string", "enum": ["CHALLENGE", "CONTEST", "REVERSE_ENG", "BADGE", "COMMUNITY", "TEAM", "MENTOR"] },
+        "sourceId": { "type": "string" },
+        "title": { "type": "string" },
+        "points": { "type": "integer" },
+        "cashAmount": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "UNDER_REVIEW", "APPROVED", "PAID", "REJECTED", "DISPUTED"] },
+        "reason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "txId", "sourceType", "sourceId", "title", "points", "status", "reason", "createdAt"]
+    },
+    "AuditLogEntry": {
+      "title": "AuditLogEntry",
+      "description": "Append-only audit trail for points, badges, evaluations, team actions, and account changes.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "actionType": { "type": "string" },
+        "summary": { "type": "string" },
+        "actorRole": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "actionType", "summary", "actorRole", "createdAt"]
     },
     "CommunityPost": {
       "title": "CommunityPost",
@@ -206,7 +268,7 @@
     },
     "ContentReport": {
       "title": "ContentReport",
-      "description": "Moderation report submitted by a user.",
+      "description": "Moderation report submitted by a user (including AI response reports).",
       "type": "object",
       "properties": {
         "reporterId": { "type": "string" },
@@ -222,7 +284,7 @@
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
-      "description": "User profile owned by userId."
+      "description": "User profile and persisted preferences owned by userId."
     },
     "/users/{userId}/goals/{goalId}": {
       "schema": { "$ref": "#/entities/CareerGoal" },
@@ -238,11 +300,23 @@
     },
     "/users/{userId}/coachMessages/{messageId}": {
       "schema": { "$ref": "#/entities/CoachMessage" },
-      "description": "AI career coaching and mock interview history scoped to userId."
+      "description": "AI agent, career coach, and mock interview history scoped to userId."
     },
     "/users/{userId}/submissions/{submissionId}": {
       "schema": { "$ref": "#/entities/ChallengeSubmission" },
       "description": "Challenge, contest, and reverse engineering submissions and verified passport evidence."
+    },
+    "/users/{userId}/badges/{badgeId}": {
+      "schema": { "$ref": "#/entities/UserBadge" },
+      "description": "Idempotent unlocked badges earned by userId."
+    },
+    "/users/{userId}/pointLedger/{txId}": {
+      "schema": { "$ref": "#/entities/PointLedgerEntry" },
+      "description": "Idempotent points and rewards ledger for userId."
+    },
+    "/users/{userId}/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLogEntry" },
+      "description": "Audit trail of account, progression, and evaluation events for userId."
     },
     "/communityPosts/{postId}": {
       "schema": { "$ref": "#/entities/CommunityPost" },
@@ -262,7 +336,7 @@
     },
     "/reports/{reportId}": {
       "schema": { "$ref": "#/entities/ContentReport" },
-      "description": "Safety and content moderation reports."
+      "description": "Safety, AI response, and content moderation reports."
     }
   }
 }

@@ -12,21 +12,35 @@ data class UserProfile(
     val userId: String = "",
     val displayName: String = "",
     val currentRole: String = "",
-    val experienceLevel: String = "",
+    val experienceLevel: String = "Junior",
     val country: String = "Egypt",
     val timezone: String = "UTC+2",
     val domain: String = "Backend & Cloud",
-    val careerLevel: String = "Mid-level",
+    val careerLevel: String = "Junior",
     val planTier: String = "Starter — Free",
     val roleMode: String = "LEARNER",
     val weeklyHours: Long = 8L,
     val currentSkills: List<String> = emptyList(),
     val targetSkills: List<String> = emptyList(),
     val goalsSummary: String = "",
-    val points: Long = 1280L,
-    val streakDays: Long = 7L,
+    val points: Long = 0L,
+    val streakDays: Long = 0L,
+    val verifiedSkillCount: Long = 0L,
     val passportPublic: Boolean = true,
     val showRepoLinks: Boolean = true,
+    val preferredLanguage: String = "EN",
+    val darkTheme: Boolean = false,
+    val onboardingCompleted: Boolean = false,
+    val savedChallengeIds: List<String> = emptyList(),
+    val savedPostIds: List<String> = emptyList(),
+    val followedTags: List<String> = emptyList(),
+    val mutedAuthors: List<String> = emptyList(),
+    val aiPersonalizationEnabled: Boolean = true,
+    val aiContextSharingEnabled: Boolean = true,
+    val emailNotifications: Boolean = false,
+    val pushNotifications: Boolean = true,
+    val teamMentionsNotifications: Boolean = true,
+    val lastRoute: String = "home",
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
 )
@@ -101,6 +115,7 @@ data class ChallengeSubmission(
     val repoOrDemoUrl: String = "",
     val understandingReport: String = "",
     val status: String = "PENDING",
+    val rejectionReason: String = "",
     val mentorFeedback: String = "",
     val score: Long = 0L,
     val pointsAwarded: Long = 0L,
@@ -108,8 +123,47 @@ data class ChallengeSubmission(
     val rewardStatus: String = "PENDING",
     val isPublicOnPassport: Boolean = true,
     val verificationCode: String = "",
+    val isDemoSample: Boolean = false,
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@IgnoreExtraProperties
+data class UserBadge(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val badgeId: String = "",
+    val title: String = "",
+    val description: String = "",
+    val criteria: String = "",
+    val pointsAwarded: Long = 0L,
+    val isShareable: Boolean = true,
+    @ServerTimestamp val unlockedAt: Timestamp? = null
+)
+
+@IgnoreExtraProperties
+data class PointLedgerEntry(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val txId: String = "",
+    val sourceType: String = "CHALLENGE",
+    val sourceId: String = "",
+    val title: String = "",
+    val points: Long = 0L,
+    val cashAmount: String = "",
+    val status: String = "APPROVED",
+    val reason: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null
+)
+
+@IgnoreExtraProperties
+data class AuditLogEntry(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val actionType: String = "",
+    val summary: String = "",
+    val actorRole: String = "LEARNER",
+    @ServerTimestamp val createdAt: Timestamp? = null
 )
 
 @IgnoreExtraProperties
@@ -209,11 +263,11 @@ data class GeneratedMilestoneItem(
 )
 
 data class SkillCategoryScore(
-    val technical: Int = 88,
-    val softSkills: Int = 78,
-    val domainKnowledge: Int = 85,
-    val problemSolving: Int = 90,
-    val communication: Int = 82
+    val technical: Int = 0,
+    val softSkills: Int = 0,
+    val domainKnowledge: Int = 0,
+    val problemSolving: Int = 0,
+    val communication: Int = 0
 )
 
 data class SkillGapAnalysisResult(
@@ -226,6 +280,99 @@ data class SkillGapAnalysisResult(
     val aiExplanation: String = "Computed from your current skills, weekly time capacity, and verified challenge benchmarks.",
     val confidencePercent: Int = 86,
     val inputsUsed: List<String> = listOf("Self-declared skills", "Target role matrix", "Weekly hours")
+)
+
+// Badges & Progression definitions
+data class BadgeDefinition(
+    val id: String,
+    val title: LocalizedText,
+    val description: LocalizedText,
+    val criteria: LocalizedText,
+    val pointsAwarded: Int,
+    val targetCount: Int,
+    val category: String
+)
+
+data class BadgeProgressItem(
+    val definition: BadgeDefinition,
+    val isUnlocked: Boolean,
+    val currentCount: Int,
+    val targetCount: Int,
+    val progressPercent: Int,
+    val remainingLabel: LocalizedText,
+    val unlockedEntry: UserBadge? = null
+)
+
+// Contextual AI Agent models
+enum class AiAgentContextMode(
+    val title: LocalizedText,
+    val purpose: LocalizedText,
+    val boundaries: LocalizedText
+) {
+    SKILL_ADVISOR(
+        title = LocalizedText("Skill Gap Advisor", "مستشار فجوات المهارات"),
+        purpose = LocalizedText("Explains skill gaps and prioritizes next practice challenges.", "يشرح فجوات المهارات ويرتّب التحديات العملية الأنسب."),
+        boundaries = LocalizedText("Does not fabricate verified credentials or guarantee hiring.", "لا يصدر شهادات وهمية ولا يضمن توظيفًا.")
+    ),
+    CHALLENGE_MENTOR(
+        title = LocalizedText("Challenge Rubric Mentor", "مرشد معايير التحدي"),
+        purpose = LocalizedText("Guides architecture choices and edge-case testing for the active challenge.", "يرشدك في قرارات التصميم واختبار الحالات الحدية للتحدي الحالي."),
+        boundaries = LocalizedText("Provides hints & rubric checks only — never copy-paste final answers.", "يقدّم تلميحات ومراجعة معايير فقط دون حلول جاهزة للنسخ.")
+    ),
+    TEAM_SPRINT_PLANNER(
+        title = LocalizedText("Team Sprint Planner", "مخطط سباقات الفريق"),
+        purpose = LocalizedText("Breaks team deliverables into clear TODO sprint tasks per role.", "يقسّم تسليمات الفريق إلى مهام واضحة حسب الدور."),
+        boundaries = LocalizedText("Requires your explicit confirmation before adding tasks to Firestore.", "يتطلب تأكيدك الصريح قبل إضافة أي مهام إلى لوحة الفريق.")
+    ),
+    COMMUNITY_COACH(
+        title = LocalizedText("Community Question Coach", "مساعد صياغة أسئلة المجتمع"),
+        purpose = LocalizedText("Helps turn vague errors into clear, secret-free technical questions.", "يساعدك على صياغة أسئلة تقنية واضحة وخالية من الأسرار."),
+        boundaries = LocalizedText("Never auto-posts without your review and blocks leaked API keys.", "لا ينشر تلقائيًا دون مراجعتك ويمنع تسريب المفاتيح السرية.")
+    ),
+    REVERSE_ENG_GUIDE(
+        title = LocalizedText("Ethical Sandbox Guide", "دليل المختبر الأخلاقي"),
+        purpose = LocalizedText("Explains authorized sandbox traces & Understanding Report structure.", "يشرح آثار المختبر المصرّح به وبنية تقرير الفهم الإلزامي."),
+        boundaries = LocalizedText("Strictly rejects exploit payloads or targeting external live hosts.", "يرفض تمامًا أي استغلال أو فحص لنطاقات خارجية حية.")
+    ),
+    PASSPORT_REVIEWER(
+        title = LocalizedText("Passport Readiness Reviewer", "مراجع جاهزية السجل المهني"),
+        purpose = LocalizedText("Summarizes your real verified submissions, badges, and next badge step.", "يلخّص تسليماتك الموثّقة الحقيقية وشاراتك والخطوة التالية."),
+        boundaries = LocalizedText("Only references real verified Firestore records in your account.", "يعتمد فقط على السجلات الموثّقة الفعلية في حسابك.")
+    )
+}
+
+sealed interface AiAgentPendingAction {
+    val description: LocalizedText
+
+    data class AddSprintTasks(
+        val team: Team,
+        val taskTitles: List<String>,
+        val role: String,
+        override val description: LocalizedText
+    ) : AiAgentPendingAction
+
+    data class UpdateTargetSkills(
+        val skillsToAdd: List<String>,
+        override val description: LocalizedText
+    ) : AiAgentPendingAction
+
+    data class DraftCommunityQuestion(
+        val title: String,
+        val body: String,
+        val tags: List<String>,
+        override val description: LocalizedText
+    ) : AiAgentPendingAction
+}
+
+data class AiAgentMessage(
+    val id: String,
+    val sender: String,
+    val content: String,
+    val dataUsedLabel: String = "",
+    val boundariesLabel: String = "",
+    val pendingAction: AiAgentPendingAction? = null,
+    val feedbackPositive: Boolean? = null,
+    val isReported: Boolean = false
 )
 
 // Ecosystem domain models (Discover, Contests, Reverse Eng, Leaderboards, Companies, Notifications, Wallet)

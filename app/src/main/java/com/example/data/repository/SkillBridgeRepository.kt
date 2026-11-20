@@ -4,17 +4,20 @@ import android.content.Context
 import com.example.R
 import com.example.core.OperationType
 import com.example.core.handleFirestoreError
+import com.example.data.model.AuditLogEntry
+import com.example.data.model.BadgeDefinition
 import com.example.data.model.CareerGoal
 import com.example.data.model.ChallengeSubmission
 import com.example.data.model.CoachMessage
 import com.example.data.model.CommunityComment
 import com.example.data.model.CommunityPost
-import com.example.data.model.ContentReport
+import com.example.data.model.PointLedgerEntry
 import com.example.data.model.RoadmapMilestone
 import com.example.data.model.SkillGap
 import com.example.data.model.SkillGapAnalysisResult
 import com.example.data.model.Team
 import com.example.data.model.TeamTask
+import com.example.data.model.UserBadge
 import com.example.data.model.UserProfile
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
@@ -100,6 +103,36 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
                 ).sortedByDescending { it.createdAt?.seconds ?: 0L }
             }
 
+    fun observeBadges(userId: String): Flow<List<UserBadge>> =
+        userDoc(userId).collection("badges")
+            .snapshots()
+            .map { snapshot ->
+                snapshot.toObjects(
+                    UserBadge::class.java,
+                    DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                ).sortedByDescending { it.unlockedAt?.seconds ?: 0L }
+            }
+
+    fun observePointLedger(userId: String): Flow<List<PointLedgerEntry>> =
+        userDoc(userId).collection("pointLedger")
+            .snapshots()
+            .map { snapshot ->
+                snapshot.toObjects(
+                    PointLedgerEntry::class.java,
+                    DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                ).sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+
+    fun observeAuditLogs(userId: String): Flow<List<AuditLogEntry>> =
+        userDoc(userId).collection("auditLogs")
+            .snapshots()
+            .map { snapshot ->
+                snapshot.toObjects(
+                    AuditLogEntry::class.java,
+                    DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                ).sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+
     fun observeCommunityPosts(): Flow<List<CommunityPost>> =
         db.collection("communityPosts")
             .whereEqualTo("isHidden", false)
@@ -166,7 +199,7 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
         country: String = "Egypt",
         timezone: String = "UTC+2",
         domain: String = "Backend & Cloud",
-        careerLevel: String = "Mid-level",
+        careerLevel: String = "Junior",
         planTier: String = "Starter — Free",
         roleMode: String = "LEARNER",
         weeklyHours: Int = 8,
@@ -174,7 +207,10 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
         targetSkills: List<String> = emptyList(),
         goalsSummary: String = "",
         passportPublic: Boolean = true,
-        showRepoLinks: Boolean = true
+        showRepoLinks: Boolean = true,
+        preferredLanguage: String = "EN",
+        darkTheme: Boolean = false,
+        onboardingCompleted: Boolean = false
     ): Result<Unit> {
         val docRef = userDoc(userId)
         return try {
@@ -182,11 +218,12 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
             val safeName = displayName.trim().ifEmpty { "SkillBridge Learner" }.take(80)
             val safeRole = currentRole.trim().take(80)
             val safeExp = experienceLevel.trim().take(40)
-            val safeLevel = if (careerLevel in setOf("Junior", "Mid-level", "Senior", "Director / Leadership")) careerLevel else "Mid-level"
+            val safeLevel = if (careerLevel in setOf("Junior", "Mid-level", "Senior", "Director / Leadership")) careerLevel else "Junior"
             val safePlan = if (planTier in setOf("Starter — Free", "Growth — Paid", "Professional+ — Paid", "Company / Enterprise")) planTier else "Starter — Free"
             val safeRoleMode = if (roleMode in setOf("LEARNER", "MENTOR", "DIRECTOR", "COMPANY", "ADMIN")) roleMode else "LEARNER"
             val safeCurrent = currentSkills.map { it.trim().take(80) }.filter { it.isNotEmpty() }.take(30)
             val safeTarget = targetSkills.map { it.trim().take(80) }.filter { it.isNotEmpty() }.take(30)
+            val safeLang = if (preferredLanguage == "AR") "AR" else "EN"
 
             if (existing.exists()) {
                 docRef.update(
@@ -206,10 +243,14 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
                         "goalsSummary" to goalsSummary.trim().take(400),
                         "passportPublic" to passportPublic,
                         "showRepoLinks" to showRepoLinks,
+                        "preferredLanguage" to safeLang,
+                        "darkTheme" to darkTheme,
+                        "onboardingCompleted" to onboardingCompleted,
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 ).await()
             } else {
+                // Zero fake achievements: brand-new account starts at 0 points, 0 streak, Junior baseline.
                 docRef.set(
                     mapOf(
                         "userId" to userId,
@@ -226,10 +267,24 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
                         "currentSkills" to safeCurrent,
                         "targetSkills" to safeTarget,
                         "goalsSummary" to goalsSummary.trim().take(400),
-                        "points" to 1280,
-                        "streakDays" to 7,
+                        "points" to 0,
+                        "streakDays" to 0,
+                        "verifiedSkillCount" to 0,
                         "passportPublic" to passportPublic,
                         "showRepoLinks" to showRepoLinks,
+                        "preferredLanguage" to safeLang,
+                        "darkTheme" to darkTheme,
+                        "onboardingCompleted" to onboardingCompleted,
+                        "savedChallengeIds" to emptyList<String>(),
+                        "savedPostIds" to emptyList<String>(),
+                        "followedTags" to emptyList<String>(),
+                        "mutedAuthors" to emptyList<String>(),
+                        "aiPersonalizationEnabled" to true,
+                        "aiContextSharingEnabled" to true,
+                        "emailNotifications" to false,
+                        "pushNotifications" to true,
+                        "teamMentionsNotifications" to true,
+                        "lastRoute" to "home",
                         "createdAt" to FieldValue.serverTimestamp(),
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
@@ -240,6 +295,32 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
             throw e
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.WRITE, docRef.path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateUserPreferences(
+        userId: String,
+        updates: Map<String, Any>
+    ): Result<Unit> {
+        val allowedKeys = setOf(
+            "preferredLanguage", "darkTheme", "onboardingCompleted", "roleMode",
+            "passportPublic", "showRepoLinks", "savedChallengeIds", "savedPostIds",
+            "followedTags", "mutedAuthors", "aiPersonalizationEnabled", "aiContextSharingEnabled",
+            "emailNotifications", "pushNotifications", "teamMentionsNotifications",
+            "lastRoute", "currentSkills", "targetSkills", "domain", "country", "timezone"
+        )
+        val filtered = updates.filterKeys { it in allowedKeys }.toMutableMap()
+        if (filtered.isEmpty()) return Result.success(Unit)
+        filtered["updatedAt"] = FieldValue.serverTimestamp()
+        val docRef = userDoc(userId)
+        return try {
+            docRef.update(filtered).await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, docRef.path)
             Result.failure(e)
         }
     }
@@ -477,7 +558,7 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
         content: String
     ): Result<String> {
         val msgRef = userDoc(userId).collection("coachMessages").document()
-        val safeMode = if (mode == "INTERVIEW") "INTERVIEW" else "COACH"
+        val safeMode = if (mode in setOf("INTERVIEW", "COACH", "AGENT")) mode else "COACH"
         val safeSender = if (sender == "AI") "AI" else "USER"
         val safeGoalId = goalId.trim().ifEmpty { "general" }.take(128)
         return try {
@@ -540,7 +621,9 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
             .ifEmpty { listOf("Practical Problem Solving") }
         val verificationCode = "SB-${UUID.randomUUID().toString().take(8).uppercase()}"
         return try {
-            subRef.set(
+            val batch = db.batch()
+            batch.set(
+                subRef,
                 mapOf(
                     "userId" to userId,
                     "challengeId" to challengeId.trim().ifEmpty { "ch_custom" }.take(128),
@@ -552,6 +635,7 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
                     "repoOrDemoUrl" to repoOrDemoUrl.trim().take(300),
                     "understandingReport" to understandingReport.trim().ifEmpty { "Verified understanding report." }.take(3000),
                     "status" to "UNDER_REVIEW",
+                    "rejectionReason" to "",
                     "mentorFeedback" to "Submitted to rubric queue for mentor verification.",
                     "score" to 0,
                     "pointsAwarded" to pointsReward.coerceIn(0, 10000),
@@ -562,7 +646,19 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
                     "createdAt" to FieldValue.serverTimestamp(),
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
-            ).await()
+            )
+            val logRef = userDoc(userId).collection("auditLogs").document()
+            batch.set(
+                logRef,
+                mapOf(
+                    "userId" to userId,
+                    "actionType" to "SUBMISSION_CREATED",
+                    "summary" to "Submitted ${challengeTitle.take(80)} for rubric review ($verificationCode)",
+                    "actorRole" to "LEARNER",
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+            )
+            batch.commit().await()
             Result.success(subRef.id)
         } catch (e: CancellationException) {
             throw e
@@ -601,15 +697,17 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
         feedback: String,
         score: Int,
         pointsAwarded: Int,
-        rewardStatus: String
+        rewardStatus: String,
+        rejectionReason: String = ""
     ): Result<Unit> {
         val subRef = userDoc(userId).collection("submissions").document(submissionId)
-        val safeStatus = if (status in setOf("PENDING", "UNDER_REVIEW", "VERIFIED", "DISPUTED")) status else "VERIFIED"
-        val safeReward = if (rewardStatus in setOf("PENDING", "UNDER_REVIEW", "APPROVED", "PAID", "DISPUTED")) rewardStatus else "APPROVED"
+        val safeStatus = if (status in setOf("PENDING", "UNDER_REVIEW", "VERIFIED", "REJECTED", "DISPUTED")) status else "VERIFIED"
+        val safeReward = if (rewardStatus in setOf("PENDING", "UNDER_REVIEW", "APPROVED", "PAID", "REJECTED", "DISPUTED")) rewardStatus else "APPROVED"
         return try {
             subRef.update(
                 mapOf(
                     "status" to safeStatus,
+                    "rejectionReason" to rejectionReason.trim().take(500),
                     "mentorFeedback" to feedback.trim().take(1000),
                     "score" to score.coerceIn(0, 100),
                     "pointsAwarded" to pointsAwarded.coerceIn(0, 10000),
@@ -622,6 +720,252 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
             throw e
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.UPDATE, subRef.path)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Strictly idempotent evaluation + points ledger + career level recomputation.
+     * Repeated evaluation of the same submission will never duplicate points in `pointLedger` or `UserProfile.points`.
+     */
+    suspend fun awardSubmissionEvaluationAndSync(
+        userId: String,
+        submission: ChallengeSubmission,
+        approve: Boolean,
+        score: Int,
+        feedback: String,
+        rejectionReason: String = "",
+        actorRole: String = "MENTOR"
+    ): Result<Unit> {
+        val targetStatus = if (approve) "VERIFIED" else if (rejectionReason.isNotBlank()) "REJECTED" else "DISPUTED"
+        val awardedPts = if (approve) submission.pointsAwarded.toInt().coerceIn(100, 10000) else 0
+        val rewardStatus = if (approve) "APPROVED" else targetStatus
+        val subRef = userDoc(userId).collection("submissions").document(submission.id)
+        val txId = PointsAndBadgesEngine.deterministicLedgerTxId(submission.category, submission.id)
+        val txRef = userDoc(userId).collection("pointLedger").document(txId)
+        val userRef = userDoc(userId)
+
+        return try {
+            subRef.update(
+                mapOf(
+                    "status" to targetStatus,
+                    "rejectionReason" to rejectionReason.trim().take(500),
+                    "mentorFeedback" to feedback.trim().take(1000),
+                    "score" to score.coerceIn(0, 100),
+                    "pointsAwarded" to awardedPts,
+                    "rewardStatus" to rewardStatus,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+
+            if (approve && awardedPts > 0) {
+                val existingTx = txRef.get().await()
+                if (!existingTx.exists()) {
+                    txRef.set(
+                        mapOf(
+                            "userId" to userId,
+                            "txId" to txId,
+                            "sourceType" to (if (submission.category in setOf("CHALLENGE", "CONTEST", "REVERSE_ENG")) submission.category else "CHALLENGE"),
+                            "sourceId" to submission.id,
+                            "title" to submission.challengeTitle.take(150),
+                            "points" to awardedPts,
+                            "cashAmount" to submission.rewardAmount.take(40),
+                            "status" to "APPROVED",
+                            "reason" to "Verified rubric score $score%",
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                    ).await()
+                }
+            }
+
+            // Recompute total points & verified count strictly from live Firestore records
+            val allLedgerSnap = userDoc(userId).collection("pointLedger").get().await()
+            val totalPoints = allLedgerSnap.documents.sumOf { doc ->
+                val st = doc.getString("status") ?: "APPROVED"
+                if (st in setOf("APPROVED", "PAID")) doc.getLong("points") ?: 0L else 0L
+            }
+            val allSubsSnap = userDoc(userId).collection("submissions").get().await()
+            val verifiedSubs = allSubsSnap.toObjects(ChallengeSubmission::class.java).filter { it.status == "VERIFIED" }
+            val verifiedSkillCount = PointsAndBadgesEngine.computeVerifiedSkillCount(verifiedSubs)
+            val updatedLevel = PointsAndBadgesEngine.computeLevelFromEvidence(totalPoints, verifiedSubs.size)
+
+            val userSnap = userRef.get().await()
+            if (userSnap.exists()) {
+                userRef.update(
+                    mapOf(
+                        "points" to totalPoints.coerceIn(0L, 1000000L),
+                        "verifiedSkillCount" to verifiedSkillCount.coerceIn(0, 500),
+                        "careerLevel" to updatedLevel,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            }
+
+            appendAuditLog(
+                userId = userId,
+                actionType = if (approve) "SUBMISSION_VERIFIED" else "SUBMISSION_$targetStatus",
+                summary = if (approve) {
+                    "Verified ${submission.challengeTitle.take(60)} ($score%, +$awardedPts pts)"
+                } else {
+                    "$targetStatus ${submission.challengeTitle.take(60)}: ${rejectionReason.ifBlank { feedback }.take(120)}"
+                },
+                actorRole = actorRole
+            )
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, subRef.path)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Strictly idempotent badge unlock using deterministic document ID `badges/{badge.id}`
+     * and deterministic ledger ID `pointLedger/tx_badge_{badge.id}`.
+     */
+    suspend fun awardBadgeIfAbsent(
+        userId: String,
+        badge: BadgeDefinition,
+        actorRole: String = "SYSTEM"
+    ): Result<Boolean> {
+        val badgeRef = userDoc(userId).collection("badges").document(badge.id)
+        val txId = PointsAndBadgesEngine.deterministicLedgerTxId("BADGE", badge.id)
+        val txRef = userDoc(userId).collection("pointLedger").document(txId)
+        val userRef = userDoc(userId)
+
+        return try {
+            val existingBadge = badgeRef.get().await()
+            if (existingBadge.exists()) {
+                return Result.success(false)
+            }
+            badgeRef.set(
+                mapOf(
+                    "userId" to userId,
+                    "badgeId" to badge.id,
+                    "title" to badge.title.en.take(100),
+                    "description" to badge.description.en.take(300),
+                    "criteria" to badge.criteria.en.take(300),
+                    "pointsAwarded" to badge.pointsAwarded,
+                    "isShareable" to true,
+                    "unlockedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+
+            val existingTx = txRef.get().await()
+            if (!existingTx.exists() && badge.pointsAwarded > 0) {
+                txRef.set(
+                    mapOf(
+                        "userId" to userId,
+                        "txId" to txId,
+                        "sourceType" to "BADGE",
+                        "sourceId" to badge.id,
+                        "title" to "Badge: ${badge.title.en}".take(150),
+                        "points" to badge.pointsAwarded,
+                        "cashAmount" to "",
+                        "status" to "APPROVED",
+                        "reason" to badge.criteria.en.take(300),
+                        "createdAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            }
+
+            // Recompute total points from ledger so points always match ledger sum
+            val allLedgerSnap = userDoc(userId).collection("pointLedger").get().await()
+            val totalPoints = allLedgerSnap.documents.sumOf { doc ->
+                val st = doc.getString("status") ?: "APPROVED"
+                if (st in setOf("APPROVED", "PAID")) doc.getLong("points") ?: 0L else 0L
+            }
+            val userSnap = userRef.get().await()
+            if (userSnap.exists()) {
+                userRef.update(
+                    mapOf(
+                        "points" to totalPoints.coerceIn(0L, 1000000L),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            }
+
+            appendAuditLog(
+                userId = userId,
+                actionType = "BADGE_UNLOCKED",
+                summary = "Unlocked badge ${badge.title.en} (+${badge.pointsAwarded} pts)",
+                actorRole = actorRole
+            )
+            Result.success(true)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.CREATE, badgeRef.path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun toggleBadgeShareable(
+        userId: String,
+        badgeId: String,
+        isShareable: Boolean
+    ): Result<Unit> {
+        val badgeRef = userDoc(userId).collection("badges").document(badgeId)
+        return try {
+            badgeRef.update(mapOf("isShareable" to isShareable)).await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, badgeRef.path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun appendAuditLog(
+        userId: String,
+        actionType: String,
+        summary: String,
+        actorRole: String = "LEARNER"
+    ): Result<Unit> {
+        val logRef = userDoc(userId).collection("auditLogs").document()
+        return try {
+            logRef.set(
+                mapOf(
+                    "userId" to userId,
+                    "actionType" to actionType.trim().ifEmpty { "EVENT" }.take(60),
+                    "summary" to summary.trim().ifEmpty { "Activity recorded" }.take(300),
+                    "actorRole" to actorRole.trim().ifEmpty { "LEARNER" }.take(40),
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.CREATE, logRef.path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteUserAccountData(userId: String): Result<Unit> {
+        val subcollections = listOf(
+            "goals", "gaps", "milestones", "coachMessages",
+            "submissions", "badges", "pointLedger", "auditLogs"
+        )
+        return try {
+            subcollections.forEach { colName ->
+                val docs = userDoc(userId).collection(colName).get().await()
+                if (!docs.isEmpty) {
+                    docs.documents.chunked(400).forEach { chunk ->
+                        val batch = db.batch()
+                        chunk.forEach { doc -> batch.delete(doc.reference) }
+                        batch.commit().await()
+                    }
+                }
+            }
+            userDoc(userId).delete().await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, userDoc(userId).path)
             Result.failure(e)
         }
     }
@@ -643,7 +987,7 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
                 mapOf(
                     "authorId" to authorId,
                     "authorName" to authorName.trim().ifEmpty { "Learner" }.take(80),
-                    "authorLevel" to authorLevel.trim().ifEmpty { "Mid-level" }.take(40),
+                    "authorLevel" to authorLevel.trim().ifEmpty { "Junior" }.take(40),
                     "authorVerified" to authorVerified,
                     "postType" to postType.trim().ifEmpty { "Technical Question" }.take(40),
                     "title" to title.trim().take(180),
@@ -705,7 +1049,7 @@ class SkillBridgeRepository(private val db: FirebaseFirestore) {
                     "parentCommentId" to parentCommentId.trim().take(128),
                     "authorId" to authorId,
                     "authorName" to authorName.trim().ifEmpty { "Learner" }.take(80),
-                    "authorLevel" to authorLevel.trim().ifEmpty { "Mid-level" }.take(40),
+                    "authorLevel" to authorLevel.trim().ifEmpty { "Junior" }.take(40),
                     "authorVerified" to authorVerified,
                     "body" to body.trim().take(3000),
                     "helpfulCount" to 0,

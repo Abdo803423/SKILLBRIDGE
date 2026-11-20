@@ -212,6 +212,54 @@ class AiCareerRepository {
         }
     }
 
+    fun streamContextualAgent(
+        mode: com.example.data.model.AiAgentContextMode,
+        isArabic: Boolean,
+        contextSummary: String,
+        allowPersonalization: Boolean,
+        allowContextSharing: Boolean,
+        history: List<com.example.data.model.AiAgentMessage>,
+        userPrompt: String
+    ): Flow<String> = flow {
+        val guardHeader = buildString {
+            appendLine("[SkillBridge AI Agent Session]")
+            appendLine("Language: ${if (isArabic) "Arabic" else "English"}")
+            appendLine("Agent Role: ${mode.title.en} (${mode.purpose.en})")
+            appendLine("Mandatory Boundaries: ${mode.boundaries.en}")
+            if (allowPersonalization && allowContextSharing && contextSummary.isNotBlank()) {
+                appendLine("Allowed Grounded Screen & User Context:")
+                appendLine(contextSummary)
+            } else {
+                appendLine("Context Sharing Disabled: Use general software engineering & SkillBridge guidelines only; do not assume private profile metrics.")
+            }
+            appendLine("Never invent fake verified badges, scores, or certificates. Be concise, practical, and structured.")
+        }
+
+        val chatHistory = buildList {
+            add(content("user") { text(guardHeader) })
+            add(content("model") { text("Ready. I will operate strictly within these SkillBridge boundaries and respond in ${if (isArabic) "Arabic" else "English"}.") })
+            history.takeLast(8).forEach { msg ->
+                val role = if (msg.sender == "AI") "model" else "user"
+                add(content(role) { text(msg.content) })
+            }
+        }
+
+        val chat = coachModel.startChat(history = chatHistory)
+        val sb = StringBuilder()
+        withTimeout(60_000L) {
+            chat.sendMessageStream(userPrompt).collect { chunk ->
+                val text = chunk.text.orEmpty()
+                if (text.isNotEmpty()) {
+                    sb.append(text)
+                    emit(sb.toString())
+                }
+            }
+        }
+        if (sb.isBlank()) {
+            throw IllegalStateException("AI Agent returned an empty response.")
+        }
+    }
+
     private fun parseAnalysisJson(
         jsonString: String,
         currentSkills: List<String>

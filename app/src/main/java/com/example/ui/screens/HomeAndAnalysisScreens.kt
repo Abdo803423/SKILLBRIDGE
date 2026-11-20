@@ -67,6 +67,10 @@ import androidx.compose.ui.unit.dp
 import com.example.core.AppLanguage
 import com.example.core.LocalAppLanguage
 import com.example.core.LocalAppStrings
+import com.example.core.localizedCareerLevel
+import com.example.core.localizedDomain
+import com.example.data.model.AiAgentContextMode
+import com.example.data.model.BadgeProgressItem
 import com.example.data.model.CareerGoal
 import com.example.data.model.ChallengeSubmission
 import com.example.data.model.RoadmapMilestone
@@ -77,6 +81,7 @@ import com.example.data.model.UserProfile
 import com.example.data.seed.SkillBridgeEcosystemData
 import com.example.ui.components.AiExplainabilityCard
 import com.example.ui.components.CircularSkillMatchGauge
+import com.example.ui.components.ContextualAiAgentBanner
 import com.example.ui.components.EmptyStateView
 import com.example.ui.components.ErrorStateView
 import com.example.ui.components.EvidenceProgressStepper
@@ -104,9 +109,12 @@ fun HomeDashboardScreen(
     profile: UserProfile?,
     goalsState: UiState<List<CareerGoal>>,
     submissions: List<ChallengeSubmission>,
+    badgeProgressList: List<BadgeProgressItem>,
     previewStateMode: PreviewStateMode,
+    isDesktop: Boolean = false,
     onRetry: () -> Unit,
     onOpenSkillAnalysis: () -> Unit,
+    onOpenBadges: () -> Unit,
     onOpenChallenge: (String) -> Unit,
     onOpenContests: () -> Unit,
     onOpenReverseEng: () -> Unit,
@@ -114,9 +122,11 @@ fun HomeDashboardScreen(
     onOpenWallet: () -> Unit,
     onOpenCompanies: () -> Unit,
     onOpenCoach: () -> Unit,
+    onOpenAiAgent: (AiAgentContextMode, String, String) -> Unit,
     onOpenOnboarding: () -> Unit,
     onOpenBlueprint: () -> Unit,
-    onOpenPassport: () -> Unit
+    onOpenPassport: () -> Unit,
+    dbOverviewContent: @Composable () -> Unit = {}
 ) {
     val strings = LocalAppStrings.current
     val lang = LocalAppLanguage.current
@@ -159,270 +169,430 @@ fun HomeDashboardScreen(
 
     val goals = (goalsState as? UiState.Success)?.data.orEmpty()
     val activeGoal = goals.firstOrNull { it.isActive } ?: goals.firstOrNull()
-    val matchScore = activeGoal?.readinessScore?.toInt() ?: 92
-    val careerLevel = profile?.careerLevel?.ifBlank { "Mid-level" } ?: "Mid-level"
-    val planTier = profile?.planTier?.ifBlank { "Starter — Free" } ?: "Starter — Free"
-    val points = profile?.points ?: 1280L
-    val streak = profile?.streakDays ?: 7L
+    val realSubs = submissions.filter { !it.isDemoSample }
+    val verifiedCount = realSubs.count { it.status == "VERIFIED" }
+    val unlockedBadgesCount = badgeProgressList.count { it.isUnlocked }
+    val matchScore = activeGoal?.readinessScore?.toInt()
+        ?: ((profile?.currentSkills?.size ?: 0) * 8 + verifiedCount * 15).coerceIn(0, 95)
+    val careerLevel = profile?.careerLevel?.ifBlank { "Junior" } ?: "Junior"
+    val planTier = profile?.planTier?.ifBlank { strings.planStarterFree } ?: strings.planStarterFree
+    val points = profile?.points ?: 0L
+    val streak = profile?.streakDays ?: 0L
+
+    val shortcuts = listOf(
+        Triple(strings.badgesTitle, Icons.Filled.Verified, onOpenBadges),
+        Triple(strings.contestsTitle, Icons.Filled.Code, onOpenContests),
+        Triple(strings.reverseEngTitle, Icons.Filled.Security, onOpenReverseEng),
+        Triple(strings.leaderboardTitle, Icons.Filled.EmojiEvents, onOpenLeaderboards),
+        Triple(strings.walletTitle, Icons.Filled.AccountBalanceWallet, onOpenWallet),
+        Triple(if (lang == AppLanguage.AR) "مشاريع الشركات" else "Company Briefs", Icons.Filled.Business, onOpenCompanies),
+        Triple(if (lang == AppLanguage.AR) "المدرب الذكي AI" else "AI Career Coach", Icons.Filled.Psychology, onOpenCoach),
+        Triple(strings.blueprintTitle, Icons.Filled.Architecture, onOpenBlueprint)
+    )
+
+    val heroCard: @Composable () -> Unit = {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(SkillBridgeRadius.lg),
+            colors = CardDefaults.cardColors(containerColor = SkillBridgeColors.DeepNavy)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.linearGradient(
+                            listOf(SkillBridgeColors.DeepNavy, ColorBlendHeader)
+                        )
+                    )
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (lang == AppLanguage.AR) "مرحبًا، $displayName" else "Welcome back, $displayName",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = SkillBridgeColors.PureWhite
+                        )
+                        Text(
+                            text = localizedDomain(profile?.domain?.ifBlank { "Backend & Cloud" } ?: "Backend & Cloud", lang),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = SkillBridgeColors.SoftCyan
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(SkillBridgeRadius.pill),
+                        color = SkillBridgeColors.PureWhite.copy(alpha = 0.12f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.LocalFireDepartment,
+                                contentDescription = null,
+                                tint = SkillBridgeColors.LimeGreen,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "$streak ${strings.streakLabel}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = SkillBridgeColors.PureWhite
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier.weight(1f).clickable(onClick = onOpenWallet),
+                        shape = RoundedCornerShape(SkillBridgeRadius.md),
+                        color = SkillBridgeColors.PureWhite.copy(alpha = 0.1f)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(strings.pointsLabel, style = MaterialTheme.typography.labelSmall, color = SkillBridgeColors.SoftCyan)
+                            Text(
+                                "$points",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = SkillBridgeColors.PureWhite,
+                                modifier = Modifier.testTag("home_points_value")
+                            )
+                        }
+                    }
+                    Surface(
+                        modifier = Modifier.weight(1f).clickable(onClick = onOpenBadges),
+                        shape = RoundedCornerShape(SkillBridgeRadius.md),
+                        color = SkillBridgeColors.PureWhite.copy(alpha = 0.1f)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(strings.badgesTitle, style = MaterialTheme.typography.labelSmall, color = SkillBridgeColors.LimeGreen)
+                            Text(
+                                "$unlockedBadgesCount / ${badgeProgressList.size}",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = SkillBridgeColors.PureWhite,
+                                modifier = Modifier.testTag("home_badges_value")
+                            )
+                        }
+                    }
+                }
+
+                val levelIndex = SkillBridgeEcosystemData.careerLevels.indexOfFirst {
+                    it.equals(careerLevel, ignoreCase = true)
+                }.coerceAtLeast(0)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (lang == AppLanguage.AR) "المستوى الموثّق: ${localizedCareerLevel(careerLevel, lang)}"
+                            else "Evidence Level: $careerLevel",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = SkillBridgeColors.PureWhite
+                        )
+                        Text(
+                            text = "${((levelIndex + 1) * 25)}%",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = SkillBridgeColors.LimeGreen
+                        )
+                    }
+                    LinearProgressIndicator(
+                        progress = { (levelIndex + 1) / 4f },
+                        modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(999.dp)),
+                        color = SkillBridgeColors.LimeGreen,
+                        trackColor = SkillBridgeColors.PureWhite.copy(alpha = 0.2f)
+                    )
+                }
+            }
+        }
+    }
+
+    val skillMatchCard: @Composable () -> Unit = {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpenSkillAnalysis)
+                .testTag("home_skill_match_card"),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                CircularSkillMatchGauge(
+                    percent = matchScore,
+                    label = strings.yourSkillMatch
+                )
+                EvidenceProgressStepper(activeStepIndex = 4)
+                OutlinedButton(
+                    onClick = onOpenSkillAnalysis,
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Text(strings.skillAnalysisTitle)
+                }
+            }
+        }
+    }
+
+    val aiRecommendationCard: @Composable () -> Unit = {
+        AiExplainabilityCard(
+            explanation = if (lang == AppLanguage.AR) {
+                if (verifiedCount == 0) {
+                    "نقطة البداية الموصى بها: ابدأ بتحدي لوحة المدينة الذكية لتسجيل أول تسليم عملي وفتح شارة أول تحدٍ (+150 نقطة)."
+                } else {
+                    "نرشح لك تحدي لوحة المدينة الذكية بناءً على مهاراتك الحالية وساعات الممارسة الأسبوعية (${profile?.weeklyHours ?: 8} س/أسبوع)."
+                }
+            } else {
+                if (verifiedCount == 0) {
+                    "Recommended starting milestone: Complete Smart City Analytics Dashboard to earn your first verified evidence & unlock the First Challenge badge."
+                } else {
+                    "Recommended next step: Smart City Analytics Dashboard aligns with your skills and closes your Time-Series Telemetry gap."
+                }
+            },
+            inputsUsed = if (lang == AppLanguage.AR) {
+                listOf("الأدلة الموثقة: $verifiedCount", "${profile?.weeklyHours ?: 8} س/أسبوع", localizedCareerLevel(careerLevel, lang))
+            } else {
+                listOf("Verified evidence: $verifiedCount", "${profile?.weeklyHours ?: 8}h/week", careerLevel)
+            },
+            confidencePercent = if (activeGoal != null) 91 else 78,
+            onEditPreferences = onOpenOnboarding,
+            onAppeal = { onOpenChallenge("ch_smart_city") }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(SkillBridgeSpacing.screenHorizontal),
+        contentPadding = PaddingValues(if (isDesktop) 24.dp else SkillBridgeSpacing.screenHorizontal),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(SkillBridgeRadius.lg),
-                colors = CardDefaults.cardColors(containerColor = SkillBridgeColors.DeepNavy)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.linearGradient(
-                                listOf(SkillBridgeColors.DeepNavy, ColorBlendHeader)
-                            )
-                        )
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+        if (isDesktop) {
+            // Desktop: 2-Column Top Workspace (Left: Hero + Skill Match + AI; Right: Live Central DB Telemetry)
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.Top
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = if (lang == AppLanguage.AR) "مرحبًا، $displayName" else "Welcome back, $displayName",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = SkillBridgeColors.PureWhite
-                            )
-                            Text(
-                                text = profile?.domain?.ifBlank { "Backend & Cloud" } ?: "Backend & Cloud",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = SkillBridgeColors.SoftCyan
-                            )
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(SkillBridgeRadius.pill),
-                            color = SkillBridgeColors.PureWhite.copy(alpha = 0.12f)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    Icons.Filled.LocalFireDepartment,
-                                    contentDescription = null,
-                                    tint = SkillBridgeColors.LimeGreen,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "$streak ${strings.streakLabel}",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = SkillBridgeColors.PureWhite
+                        heroCard()
+                        LevelAndPlanBadgeRow(careerLevel = careerLevel, planTier = planTier)
+                        skillMatchCard()
+                        ContextualAiAgentBanner(
+                            mode = AiAgentContextMode.SKILL_ADVISOR,
+                            onOpenAgent = {
+                                onOpenAiAgent(
+                                    AiAgentContextMode.SKILL_ADVISOR,
+                                    "Home Dashboard",
+                                    "User level=$careerLevel, points=$points, verified=$verifiedCount, activeGoal=${activeGoal?.targetRole ?: "None"}"
                                 )
                             }
-                        }
+                        )
                     }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    Column(
+                        modifier = Modifier.weight(1.1f),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Surface(
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(SkillBridgeRadius.md),
-                            color = SkillBridgeColors.PureWhite.copy(alpha = 0.1f)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(strings.pointsLabel, style = MaterialTheme.typography.labelSmall, color = SkillBridgeColors.SoftCyan)
-                                Text(
-                                    "$points",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SkillBridgeColors.PureWhite
-                                )
-                            }
-                        }
-                        Surface(
-                            modifier = Modifier.weight(1f).clickable(onClick = onOpenPassport),
-                            shape = RoundedCornerShape(SkillBridgeRadius.md),
-                            color = SkillBridgeColors.PureWhite.copy(alpha = 0.1f)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(strings.verifiedExperience, style = MaterialTheme.typography.labelSmall, color = SkillBridgeColors.LimeGreen)
-                                Text(
-                                    "${submissions.count { it.status == "VERIFIED" }.coerceAtLeast(2)} Badges",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SkillBridgeColors.PureWhite
-                                )
-                            }
-                        }
+                        dbOverviewContent()
                     }
+                }
+            }
 
-                    // Evidence-based level progression bar
-                    val levelIndex = SkillBridgeEcosystemData.careerLevels.indexOfFirst {
-                        it.equals(careerLevel, ignoreCase = true)
-                    }.coerceAtLeast(1)
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Desktop: 4-Column Ecosystem Hubs Grid
+            item {
+                SectionHeaderRow(title = if (lang == AppLanguage.AR) "بوابات المنصة المتخصصة" else "Ecosystem Hubs")
+                Spacer(Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    shortcuts.chunked(4).forEach { rowShortcuts ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text(
-                                text = if (lang == AppLanguage.AR) "المستوى الموثّق: $careerLevel" else "Evidence Level: $careerLevel",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = SkillBridgeColors.PureWhite
-                            )
-                            Text(
-                                text = "${((levelIndex + 1) * 25)}%",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = SkillBridgeColors.LimeGreen
-                            )
+                            rowShortcuts.forEach { (label, icon, action) ->
+                                Surface(
+                                    shape = RoundedCornerShape(SkillBridgeRadius.md),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable(onClick = action)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Icon(icon, contentDescription = label, tint = SkillBridgeColors.BridgeBlueDark)
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
                         }
-                        LinearProgressIndicator(
-                            progress = { (levelIndex + 1) / 4f },
-                            modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(999.dp)),
-                            color = SkillBridgeColors.LimeGreen,
-                            trackColor = SkillBridgeColors.PureWhite.copy(alpha = 0.2f)
+                    }
+                }
+            }
+
+            // Desktop: 2-Column Bottom Row (AI Recommendation + Active Challenges)
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        aiRecommendationCard()
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        SectionHeaderRow(
+                            title = strings.activeChallenges,
+                            actionText = strings.filterAll,
+                            onAction = { onOpenChallenge("ch_smart_city") }
+                        )
+                        SkillBridgeEcosystemData.challenges.take(3).forEach { ch ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onOpenChallenge(ch.id) },
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = ch.title.get(lang),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        StatusPill(text = "+${ch.pointsReward} ${strings.pointsLabel}", tone = StatusTone.PAID)
+                                    }
+                                    Text(
+                                        text = "${ch.companyName} • ${ch.soloOrTeamLabel.get(lang)} • ${ch.deadline}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            item { heroCard() }
+            item { LevelAndPlanBadgeRow(careerLevel = careerLevel, planTier = planTier) }
+            item { skillMatchCard() }
+            item {
+                ContextualAiAgentBanner(
+                    mode = AiAgentContextMode.SKILL_ADVISOR,
+                    onOpenAgent = {
+                        onOpenAiAgent(
+                            AiAgentContextMode.SKILL_ADVISOR,
+                            "Home Dashboard",
+                            "User level=$careerLevel, points=$points, verified=$verifiedCount, activeGoal=${activeGoal?.targetRole ?: "None"}"
                         )
                     }
-                }
-            }
-        }
-
-        item {
-            LevelAndPlanBadgeRow(careerLevel = careerLevel, planTier = planTier)
-        }
-
-        // Skill Match Ring + Core Loop Stepper
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onOpenSkillAnalysis)
-                    .testTag("home_skill_match_card"),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    CircularSkillMatchGauge(
-                        percent = matchScore,
-                        label = strings.yourSkillMatch
-                    )
-                    EvidenceProgressStepper(activeStepIndex = 4)
-                    OutlinedButton(
-                        onClick = onOpenSkillAnalysis,
-                        modifier = Modifier.fillMaxWidth().height(48.dp)
-                    ) {
-                        Text(strings.skillAnalysisTitle)
-                    }
-                }
-            }
-        }
-
-        // Quick Hub Shortcuts (Contests, Reverse Eng, Leaderboards, Wallet, Companies, AI Coach, Architecture)
-        item {
-            SectionHeaderRow(title = if (lang == AppLanguage.AR) "بوابات المنصة المتخصصة" else "Ecosystem Hubs")
-            Spacer(Modifier.height(8.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                val shortcuts = listOf(
-                    Triple(strings.contestsTitle, Icons.Filled.Code, onOpenContests),
-                    Triple(strings.reverseEngTitle, Icons.Filled.Security, onOpenReverseEng),
-                    Triple(strings.leaderboardTitle, Icons.Filled.EmojiEvents, onOpenLeaderboards),
-                    Triple(strings.walletTitle, Icons.Filled.AccountBalanceWallet, onOpenWallet),
-                    Triple(strings.companyDashTitle, Icons.Filled.Business, onOpenCompanies),
-                    Triple(if (lang == AppLanguage.AR) "المدرب الذكي AI" else "AI Career Coach", Icons.Filled.Psychology, onOpenCoach),
-                    Triple(strings.blueprintTitle, Icons.Filled.Architecture, onOpenBlueprint)
                 )
-                items(shortcuts) { (label, icon, action) ->
-                    Surface(
-                        shape = RoundedCornerShape(SkillBridgeRadius.md),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        modifier = Modifier
-                            .width(136.dp)
-                            .clickable(onClick = action)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+            }
+            item { dbOverviewContent() }
+            item {
+                SectionHeaderRow(title = if (lang == AppLanguage.AR) "بوابات المنصة المتخصصة" else "Ecosystem Hubs")
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(shortcuts) { (label, icon, action) ->
+                        Surface(
+                            shape = RoundedCornerShape(SkillBridgeRadius.md),
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            modifier = Modifier
+                                .width(136.dp)
+                                .clickable(onClick = action)
                         ) {
-                            Icon(icon, contentDescription = label, tint = SkillBridgeColors.BridgeBlueDark)
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(icon, contentDescription = label, tint = SkillBridgeColors.BridgeBlueDark)
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
-
-        // Transparent AI Smart Recommendation
-        item {
-            AiExplainabilityCard(
-                explanation = if (lang == AppLanguage.AR) {
-                    "نرشح لك تحدي لوحة المدينة الذكية لأن مهاراتك في SQL وKotlin تغطي ٨٥٪ من المتطلبات، وسيرفع إكماله مؤشر الفهم الموثّق."
-                } else {
-                    "Recommended next step: Smart City Analytics Dashboard matches 85% of your SQL & Kotlin baseline and closes your Time-Series Telemetry gap."
-                },
-                inputsUsed = listOf("Verified SQL + Kotlin", "85% Rubric Fit", "${profile?.weeklyHours ?: 8}h/week"),
-                confidencePercent = 91,
-                onEditPreferences = onOpenOnboarding,
-                onAppeal = { onOpenChallenge("ch_smart_city") }
-            )
-        }
-
-        // Active Challenges & Deadlines
-        item {
-            SectionHeaderRow(
-                title = strings.activeChallenges,
-                actionText = strings.filterAll,
-                onAction = { onOpenChallenge("ch_smart_city") }
-            )
-        }
-        items(SkillBridgeEcosystemData.challenges.take(3)) { ch ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenChallenge(ch.id) },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+            item { aiRecommendationCard() }
+            item {
+                SectionHeaderRow(
+                    title = strings.activeChallenges,
+                    actionText = strings.filterAll,
+                    onAction = { onOpenChallenge("ch_smart_city") }
+                )
+            }
+            items(SkillBridgeEcosystemData.challenges.take(3)) { ch ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenChallenge(ch.id) },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = ch.title.get(lang),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatusPill(text = "+${ch.pointsReward} ${strings.pointsLabel}", tone = StatusTone.PAID)
+                        }
                         Text(
-                            text = ch.title.get(lang),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
+                            text = "${ch.companyName} • ${ch.soloOrTeamLabel.get(lang)} • ${ch.deadline}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        StatusPill(text = "+${ch.pointsReward} pts", tone = StatusTone.PAID)
                     }
-                    Text(
-                        text = "${ch.companyName} • ${ch.soloOrTeamLabel.get(lang)} • ${ch.deadline}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
         }
@@ -446,6 +616,7 @@ fun SkillAnalysisScreen(
     onRunAnalysis: (String, String, List<String>, String, Int) -> Unit,
     onToggleMilestone: (RoadmapMilestone) -> Unit,
     onProveSkill: (String) -> Unit,
+    onOpenAiAgent: (String) -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler(onBack = onBack)
@@ -459,8 +630,12 @@ fun SkillAnalysisScreen(
     val milestones = (milestonesState as? UiState.Success)?.data.orEmpty()
         .filter { activeGoal == null || it.goalId == activeGoal.id }
 
-    val score = latestAnalysis?.readinessScore ?: activeGoal?.readinessScore?.toInt() ?: 92
-    val cats = latestAnalysis?.categoryScores ?: SkillCategoryScore(95, 76, 85, 90, 84)
+    val score = latestAnalysis?.readinessScore ?: activeGoal?.readinessScore?.toInt() ?: 0
+    val cats = latestAnalysis?.categoryScores ?: if (activeGoal != null) {
+        SkillCategoryScore(score, (score - 8).coerceAtLeast(10), (score - 4).coerceAtLeast(10), score, (score - 6).coerceAtLeast(10))
+    } else {
+        SkillCategoryScore(0, 0, 0, 0, 0)
+    }
 
     var showAnalyzerForm by remember { mutableStateOf(false) }
     var targetRole by remember { mutableStateOf(activeGoal?.targetRole?.ifBlank { "Senior Data & Backend Engineer" } ?: "Senior Data & Backend Engineer") }
@@ -490,6 +665,15 @@ fun SkillAnalysisScreen(
                     Text(strings.aiGapAnalyzer)
                 }
             }
+        }
+
+        item {
+            ContextualAiAgentBanner(
+                mode = AiAgentContextMode.SKILL_ADVISOR,
+                onOpenAgent = {
+                    onOpenAiAgent("Target=${activeGoal?.targetRole ?: targetRole}, Score=$score%, OpenGaps=${gaps.size}")
+                }
+            )
         }
 
         if (showAnalyzerForm) {
@@ -580,9 +764,13 @@ fun SkillAnalysisScreen(
             AiExplainabilityCard(
                 explanation = latestAnalysis?.aiExplanation
                     ?: activeGoal?.executiveSummary?.ifBlank { null }
-                    ?: if (lang == AppLanguage.AR) "تم حساب النسبة بناءً على مهاراتك الحالية، والأدلة الموثقة في تحديات البيانات، ومعايير المسار." else "Calculated from your verified challenge scores, declared skills, and rubric alignment for your target role.",
-                inputsUsed = latestAnalysis?.inputsUsed ?: listOf("Verified Challenges", "Target Role Rubric", "Weekly Study Capacity"),
-                confidencePercent = latestAnalysis?.confidencePercent ?: 89,
+                    ?: if (lang == AppLanguage.AR) "شغّل تحليل الفجوات الذكي لتوليد تقييم مخصص لمهاراتك وأهدافك دون أرقام افتراضية." else "Run AI Skill Gap Analyzer above to compute a personalized readiness score from your actual skills and goals.",
+                inputsUsed = latestAnalysis?.inputsUsed ?: if (lang == AppLanguage.AR) {
+                    listOf("تحليل المهارات", "ساعات الممارسة", "أدلة التحديات")
+                } else {
+                    listOf("Declared Skills", "Weekly Practice Hours", "Verified Submissions")
+                },
+                confidencePercent = latestAnalysis?.confidencePercent ?: if (activeGoal != null) 88 else 70,
                 onEditPreferences = { showAnalyzerForm = true },
                 onAppeal = { onProveSkill("ch_smart_city") }
             )
@@ -669,7 +857,8 @@ fun SkillAnalysisScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         StatusPill(
-                            text = if (ms.completed) "Done" else "Phase ${ms.phaseOrder}",
+                            text = if (ms.completed) (if (lang == AppLanguage.AR) "مكتمل" else "Done")
+                            else (if (lang == AppLanguage.AR) "المرحلة ${ms.phaseOrder}" else "Phase ${ms.phaseOrder}"),
                             tone = if (ms.completed) StatusTone.VERIFIED else StatusTone.NEUTRAL
                         )
                         Column(modifier = Modifier.weight(1f)) {

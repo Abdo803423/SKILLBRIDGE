@@ -20,15 +20,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -39,11 +38,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -58,6 +57,11 @@ import androidx.compose.ui.unit.dp
 import com.example.core.AppLanguage
 import com.example.core.LocalAppLanguage
 import com.example.core.LocalAppStrings
+import com.example.core.localizedCareerLevel
+import com.example.core.localizedChannelName
+import com.example.core.localizedDomain
+import com.example.core.localizedNotificationCategory
+import com.example.core.localizedSubmissionStatus
 import com.example.data.model.CareerGoal
 import com.example.data.model.ChallengeSubmission
 import com.example.data.model.CoachMessage
@@ -74,7 +78,6 @@ import com.example.ui.components.SectionHeaderRow
 import com.example.ui.components.StatusPill
 import com.example.ui.components.StatusTone
 import com.example.ui.theme.SkillBridgeColors
-import com.example.ui.theme.SkillBridgeRadius
 import com.example.ui.theme.SkillBridgeSpacing
 import com.example.ui.viewmodel.CoachStreamState
 import com.example.ui.viewmodel.PreviewStateMode
@@ -129,7 +132,7 @@ fun GlobalSearchScreen(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(ch.title.get(lang), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("${ch.companyName} • ${ch.domain}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${ch.companyName} • ${localizedDomain(ch.domain, lang)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -142,8 +145,11 @@ fun GlobalSearchScreen(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("${p.name} (${p.level})", fontWeight = FontWeight.SemiBold)
-                    Text("${p.rating} Rating", color = SkillBridgeColors.BridgeBlueDark)
+                    Text("${p.name} (${localizedCareerLevel(p.level, lang)})", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "${p.rating} ${if (lang == AppLanguage.AR) "تقييم" else "Rating"}",
+                        color = SkillBridgeColors.BridgeBlueDark
+                    )
                 }
             }
         }
@@ -192,7 +198,11 @@ fun NotificationsScreen(
             Spacer(Modifier.height(8.dp))
             Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 categories.forEach { c ->
-                    FilterChip(selected = selectedCat == c, onClick = { selectedCat = c }, label = { Text(c) })
+                    FilterChip(
+                        selected = selectedCat == c,
+                        onClick = { selectedCat = c },
+                        label = { Text(localizedNotificationCategory(c, lang)) }
+                    )
                 }
             }
         }
@@ -209,7 +219,7 @@ fun NotificationsScreen(
             ) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        StatusPill(notif.category, if (isUnread) StatusTone.REVIEW else StatusTone.NEUTRAL)
+                        StatusPill(localizedNotificationCategory(notif.category, lang), if (isUnread) StatusTone.REVIEW else StatusTone.NEUTRAL)
                         Text(notif.timeAgo, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Text(notif.title.get(lang), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -228,7 +238,7 @@ fun NotificationsScreen(
                     Text(if (lang == AppLanguage.AR) "تفضيلات قنوات التنبيه" else "Notification Channels", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     channels.forEach { (channel, enabled) ->
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(channel, style = MaterialTheme.typography.bodyMedium)
+                            Text(localizedChannelName(channel, lang), style = MaterialTheme.typography.bodyMedium)
                             Switch(checked = enabled, onCheckedChange = { onToggleChannel(channel) })
                         }
                     }
@@ -285,18 +295,22 @@ fun CompanyDashboardScreen(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(comp.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("${comp.city} • ${comp.domain}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("${comp.city} • ${localizedDomain(comp.domain, lang)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         StatusPill(if (lang == AppLanguage.AR) comp.tier.badgeAr else comp.tier.badgeEn, tone, Icons.Filled.Verified)
                     }
                     Text(comp.verificationReason.get(lang), style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "Verified: ${comp.verifiedDate} • ${comp.publishedChallenges} Challenges • ${comp.completionRate}% Completion • ★ ${comp.avgMentorRating}",
+                        if (lang == AppLanguage.AR) {
+                            "التوثيق: ${comp.verifiedDate} • ${comp.publishedChallenges} تحديات • ${comp.completionRate}% إتمام • ★ ${comp.avgMentorRating}"
+                        } else {
+                            "Verified: ${comp.verifiedDate} • ${comp.publishedChallenges} Challenges • ${comp.completionRate}% Completion • ★ ${comp.avgMentorRating}"
+                        },
                         style = MaterialTheme.typography.labelMedium,
                         color = SkillBridgeColors.BridgeBlueDark
                     )
-                    Text("Rewards: ${comp.rewardPolicy.get(lang)}", style = MaterialTheme.typography.bodyMedium)
-                    Text("IP: ${comp.ipPolicy.get(lang)}", style = MaterialTheme.typography.bodyMedium)
+                    Text("${if (lang == AppLanguage.AR) "المكافآت:" else "Rewards:"} ${comp.rewardPolicy.get(lang)}", style = MaterialTheme.typography.bodyMedium)
+                    Text("${if (lang == AppLanguage.AR) "الملكية الفكرية:" else "IP:"} ${comp.ipPolicy.get(lang)}", style = MaterialTheme.typography.bodyMedium)
                     OutlinedButton(
                         onClick = { onReportCompany(comp.id, "Verification audit check requested") },
                         modifier = Modifier.height(48.dp)
@@ -325,7 +339,10 @@ fun CompanyDashboardScreen(
                     )
                     Button(
                         onClick = {
-                            onShowToast("Challenge draft queued for Company Verification & Rubric audit")
+                            onShowToast(
+                                if (lang == AppLanguage.AR) "تم إرسال مسودة التحدي لمراجعة التوثيق ومعايير التقييم"
+                                else "Challenge draft queued for Company Verification & Rubric audit"
+                            )
                             newChallengeTitle = ""
                         },
                         enabled = newChallengeTitle.isNotBlank(),
@@ -342,7 +359,7 @@ fun CompanyDashboardScreen(
 }
 
 /**
- * Screen 19 & 20: AI Coach + Mock Interview + Mentor Review Studio + Director/Moderator Queue.
+ * Screen 19 & 20: AI Coach + Mock Interview + Mentor Review Studio (with REJECTED + Reason) + Director/Moderator Queue.
  */
 @Composable
 fun MentorCoachAndAdminScreen(
@@ -354,17 +371,22 @@ fun MentorCoachAndAdminScreen(
     submissionsState: UiState<List<ChallengeSubmission>>,
     onSendCoachPrompt: (String, String, CareerGoal?, List<SkillGap>) -> Unit,
     onClearCoachHistory: (String) -> Unit,
-    onEvaluateSubmission: (ChallengeSubmission, Int, String, Boolean) -> Unit,
+    onEvaluateSubmission: (ChallengeSubmission, Int, String, Boolean, String) -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler(onBack = onBack)
     val strings = LocalAppStrings.current
     val lang = LocalAppLanguage.current
     var selectedTab by remember { mutableIntStateOf(initialTab) }
+    var rejectTarget by remember { mutableStateOf<Pair<ChallengeSubmission, String>?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = selectedTab) {
-            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("AI Coach") })
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                text = { Text(if (lang == AppLanguage.AR) "المدرب الذكي AI" else "AI Coach") }
+            )
             Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(strings.roleMentor) })
             Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text(strings.roleDirector) })
         }
@@ -380,10 +402,20 @@ fun MentorCoachAndAdminScreen(
 
                 Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = mode == "COACH", onClick = { mode = "COACH" }, label = { Text("Career Coach") })
-                        FilterChip(selected = mode == "INTERVIEW", onClick = { mode = "INTERVIEW" }, label = { Text("Mock Interview") })
+                        FilterChip(
+                            selected = mode == "COACH",
+                            onClick = { mode = "COACH" },
+                            label = { Text(if (lang == AppLanguage.AR) "مدرب المسار" else "Career Coach") }
+                        )
+                        FilterChip(
+                            selected = mode == "INTERVIEW",
+                            onClick = { mode = "INTERVIEW" },
+                            label = { Text(if (lang == AppLanguage.AR) "محاكاة المقابلة" else "Mock Interview") }
+                        )
                         Spacer(Modifier.weight(1f))
-                        OutlinedButton(onClick = { onClearCoachHistory(mode) }) { Text("Clear") }
+                        OutlinedButton(onClick = { onClearCoachHistory(mode) }) {
+                            Text(if (lang == AppLanguage.AR) "مسح" else "Clear")
+                        }
                     }
                     LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         val filtered = messages.filter { it.mode == mode }
@@ -416,6 +448,11 @@ fun MentorCoachAndAdminScreen(
                                 }
                             }
                         }
+                        if (coachStreamState is CoachStreamState.Error) {
+                            item {
+                                Text(coachStreamState.message, color = SkillBridgeColors.DisputedRed, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
@@ -437,35 +474,79 @@ fun MentorCoachAndAdminScreen(
                 }
             }
             1 -> {
-                val subs = ((submissionsState as? UiState.Success)?.data.orEmpty() + SkillBridgeEcosystemData.seedSubmissions).distinctBy { it.id }
+                val realSubs = ((submissionsState as? UiState.Success)?.data.orEmpty()).filter { !it.isDemoSample && !it.id.startsWith("seed_") }
+                val listToReview = if (realSubs.isNotEmpty()) realSubs else SkillBridgeEcosystemData.seedSubmissions
                 LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     item {
                         Text(strings.mentorDashTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        if (realSubs.isEmpty()) {
+                            InfoNoteBanner(
+                                text = if (lang == AppLanguage.AR) {
+                                    "لا توجد تسليمات مستخدمين للمراجعة بعد. تظهر أدناه نماذج مرجعية للقراءة فقط."
+                                } else {
+                                    "No live user submissions pending review yet. Showing read-only Demo Reference cards below."
+                                }
+                            )
+                        }
                     }
-                    items(subs) { sub ->
-                        var feedback by remember(sub.id) { mutableStateOf(sub.mentorFeedback.ifBlank { "Clean implementation and solid test verification." }) }
+                    items(listToReview, key = { it.id }) { sub ->
+                        var feedback by remember(sub.id) {
+                            mutableStateOf(
+                                sub.mentorFeedback.ifBlank {
+                                    if (lang == AppLanguage.AR) "تنفيذ واضح واختبارات تحقق متكاملة."
+                                    else "Clean implementation and solid test verification."
+                                }
+                            )
+                        }
+                        val statusTone = when (sub.status) {
+                            "VERIFIED" -> StatusTone.VERIFIED
+                            "REJECTED", "DISPUTED" -> StatusTone.DISPUTED
+                            else -> StatusTone.REVIEW
+                        }
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                         ) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(sub.challengeTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                    StatusPill(sub.status, if (sub.status == "VERIFIED") StatusTone.VERIFIED else StatusTone.REVIEW)
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(sub.challengeTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                    StatusPill(localizedSubmissionStatus(sub.status, lang), statusTone)
                                 }
-                                Text("Understanding Report: ${sub.understandingReport}", style = MaterialTheme.typography.bodyMedium)
-                                OutlinedTextField(value = feedback, onValueChange = { feedback = it }, label = { Text("Mentor Verified Feedback") }, modifier = Modifier.fillMaxWidth())
+                                if (sub.isDemoSample || sub.id.startsWith("seed_")) {
+                                    StatusPill(strings.demoCatalogLabel, StatusTone.NEUTRAL)
+                                }
+                                Text(
+                                    "${if (lang == AppLanguage.AR) "تقرير الفهم:" else "Understanding Report:"} ${sub.understandingReport}",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                if (sub.rejectionReason.isNotBlank()) {
+                                    Text(
+                                        "${if (lang == AppLanguage.AR) "سبب الرفض:" else "Rejection Reason:"} ${sub.rejectionReason}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = SkillBridgeColors.DisputedRed
+                                    )
+                                }
+                                OutlinedTextField(
+                                    value = feedback,
+                                    onValueChange = { feedback = it },
+                                    label = { Text(strings.mentorFeedback) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                                     Button(
-                                        onClick = { onEvaluateSubmission(sub, 92, feedback, true) },
+                                        onClick = { onEvaluateSubmission(sub, 92, feedback, true, "") },
                                         colors = ButtonDefaults.buttonColors(containerColor = SkillBridgeColors.VerifiedGreen),
                                         modifier = Modifier.weight(1f).height(48.dp)
-                                    ) { Text("Verify (92%)") }
+                                    ) {
+                                        Text(if (lang == AppLanguage.AR) "توثيق (92%)" else "Verify (92%)")
+                                    }
                                     OutlinedButton(
-                                        onClick = { onEvaluateSubmission(sub, 45, feedback, false) },
+                                        onClick = { rejectTarget = sub to feedback },
                                         modifier = Modifier.weight(1f).height(48.dp)
-                                    ) { Text("Request Revision") }
+                                    ) {
+                                        Text(if (lang == AppLanguage.AR) "رفض / تعديل" else "Reject / Revise")
+                                    }
                                 }
                             }
                         }
@@ -483,9 +564,19 @@ fun MentorCoachAndAdminScreen(
                     item {
                         Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                StatusPill("MODERATION QUEUE • 1 OPEN", StatusTone.PENDING)
-                                Text("Secret Scanner Guardrail Active", fontWeight = FontWeight.Bold)
-                                Text("All Reverse Engineering & Contest submissions undergo automated credential detection + mentor understanding review.", style = MaterialTheme.typography.bodyMedium)
+                                StatusPill(if (lang == AppLanguage.AR) "طابور الإشراف • نشط" else "MODERATION QUEUE • ACTIVE", StatusTone.PENDING)
+                                Text(
+                                    if (lang == AppLanguage.AR) "حاجز فحص الأسرار والتسريبات مفعّل" else "Secret Scanner Guardrail Active",
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    if (lang == AppLanguage.AR) {
+                                        "جميع تسليمات الهندسة العكسية والمسابقات وردود المساعد الذكي تخضع لفحص التسريبات ومراجعة المرشدين."
+                                    } else {
+                                        "All Reverse Engineering & Contest submissions and flagged AI responses undergo automated credential detection + mentor understanding review."
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
                             }
                         }
                     }
@@ -493,20 +584,52 @@ fun MentorCoachAndAdminScreen(
             }
         }
     }
+
+    rejectTarget?.let { (sub, feedback) ->
+        var reason by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { rejectTarget = null },
+            title = { Text(if (lang == AppLanguage.AR) "سبب الرفض أو طلب التعديل" else "Rejection / Revision Reason") },
+            text = {
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { reason = it },
+                    label = { Text(if (lang == AppLanguage.AR) "اكتب السبب بوضوح" else "Explicit rejection reason") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onEvaluateSubmission(sub, 45, feedback, false, reason.ifBlank { "Needs stronger verification tests" })
+                        rejectTarget = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SkillBridgeColors.DisputedRed)
+                ) { Text(strings.confirmLabel) }
+            },
+            dismissButton = {
+                TextButton(onClick = { rejectTarget = null }) { Text(strings.cancelLabel) }
+            }
+        )
+    }
 }
 
 /**
- * Screen 21 & 22: Privacy Controls + Interactive UI State Previewer + Complete Product Blueprint & MVP Roadmap.
+ * Screen 21 & 22: Privacy Controls + AI Preferences + Interactive UI State Previewer + Product Blueprint.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PrivacyStatesAndBlueprintScreen(
     profile: UserProfile?,
     darkTheme: Boolean,
+    aiPersonalizationEnabled: Boolean,
+    aiContextSharingEnabled: Boolean,
     previewStateMode: PreviewStateMode,
     onToggleDarkTheme: (Boolean) -> Unit,
+    onToggleAiPrefs: (Boolean, Boolean) -> Unit,
     onUpdatePrivacy: (Boolean, Boolean) -> Unit,
     onSelectPreviewMode: (PreviewStateMode) -> Unit,
+    onOpenAccountSettings: () -> Unit,
     onSignOut: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -516,6 +639,7 @@ fun PrivacyStatesAndBlueprintScreen(
 
     var passportPublic by remember(profile?.passportPublic) { mutableStateOf(profile?.passportPublic ?: true) }
     var showRepoLinks by remember(profile?.showRepoLinks) { mutableStateOf(profile?.showRepoLinks ?: true) }
+    var showSignOutConfirm by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -526,7 +650,7 @@ fun PrivacyStatesAndBlueprintScreen(
             Text(strings.privacySettingsTitle, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
 
-        // Granular Privacy Controls
+        // Granular Privacy & AI Controls
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -555,11 +679,27 @@ fun PrivacyStatesAndBlueprintScreen(
                         })
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(strings.aiAgentPersonalizationToggle, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Switch(checked = aiPersonalizationEnabled, onCheckedChange = { onToggleAiPrefs(it, aiContextSharingEnabled) })
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(strings.aiAgentContextToggle, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Switch(checked = aiContextSharingEnabled, onCheckedChange = { onToggleAiPrefs(aiPersonalizationEnabled, it) })
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(if (lang == AppLanguage.AR) "الوضع الداكن (Deep Navy)" else "Deep Navy Dark Theme", fontWeight = FontWeight.SemiBold)
                         Switch(checked = darkTheme, onCheckedChange = onToggleDarkTheme)
                     }
                     OutlinedButton(
-                        onClick = onSignOut,
+                        onClick = onOpenAccountSettings,
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Icon(Icons.Filled.ManageAccounts, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(strings.accountSettingsTitle)
+                    }
+                    OutlinedButton(
+                        onClick = { showSignOutConfirm = true },
                         modifier = Modifier.fillMaxWidth().height(48.dp).testTag("sign_out_btn")
                     ) {
                         Text(strings.signOut, color = SkillBridgeColors.DisputedRed)
@@ -588,10 +728,24 @@ fun PrivacyStatesAndBlueprintScreen(
                     }
                     when (previewStateMode) {
                         PreviewStateMode.LOADING -> LoadingStateView()
-                        PreviewStateMode.EMPTY -> EmptyStateView(subtitle = "Sample empty state preview", onAction = { onSelectPreviewMode(PreviewStateMode.NORMAL) })
-                        PreviewStateMode.ERROR -> ErrorStateView(message = "Sample recoverable network error", onRetry = { onSelectPreviewMode(PreviewStateMode.NORMAL) })
-                        PreviewStateMode.LOCKED -> LockedStateView(reason = "Requires verified Challenge #1", actionLabel = "Unlock", onAction = { onSelectPreviewMode(PreviewStateMode.NORMAL) })
-                        PreviewStateMode.NORMAL -> StatusPill("Active Live State", StatusTone.VERIFIED, Icons.Filled.CheckCircle)
+                        PreviewStateMode.EMPTY -> EmptyStateView(
+                            subtitle = if (lang == AppLanguage.AR) "معاينة حالة القائمة الفارغة" else "Sample empty state preview",
+                            onAction = { onSelectPreviewMode(PreviewStateMode.NORMAL) }
+                        )
+                        PreviewStateMode.ERROR -> ErrorStateView(
+                            message = if (lang == AppLanguage.AR) "معاينة حالة خطأ شبكة قابل للاستعادة" else "Sample recoverable network error",
+                            onRetry = { onSelectPreviewMode(PreviewStateMode.NORMAL) }
+                        )
+                        PreviewStateMode.LOCKED -> LockedStateView(
+                            reason = if (lang == AppLanguage.AR) "يتطلب إكمال التحدي الموثّق الأول" else "Requires verified Challenge #1",
+                            actionLabel = if (lang == AppLanguage.AR) "عودة" else "Unlock",
+                            onAction = { onSelectPreviewMode(PreviewStateMode.NORMAL) }
+                        )
+                        PreviewStateMode.NORMAL -> StatusPill(
+                            if (lang == AppLanguage.AR) "الحالة الحية النشطة" else "Active Live State",
+                            StatusTone.VERIFIED,
+                            Icons.Filled.CheckCircle
+                        )
                     }
                 }
             }
@@ -606,19 +760,34 @@ fun PrivacyStatesAndBlueprintScreen(
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(strings.blueprintTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = SkillBridgeColors.PureWhite)
                     Text(
-                        "• Core Loop: Skill Gap → Learning → Practical Experience → Evaluation → Verified Evidence → Opportunity\n" +
-                            "• 5-Tab Navigation: Home, Discover, Community, Teams, Passport (+ Global Search, Notifications, Role Switcher, AR/EN RTL/LTR)\n" +
-                            "• MVP Phase 1 (Launch): Auth + Onboarding + Skill Gap + Challenges + Teams + Experience Passport\n" +
-                            "• MVP Phase 2 (Growth): Live Contests + Top-100 Leaderboards + Ethical Reverse Eng Hub + Mentor Studio\n" +
-                            "• MVP Phase 3 (Scale): Company Verification Escrow + Talent Pipeline + Skill Evidence Graph",
+                        if (lang == AppLanguage.AR) {
+                            "• الحلقة الأساسية: فجوة المهارات ← التعلم ← التطبيق العملي ← التقييم ← دليل موثّق ← الفرصة\n" +
+                                "• التنقل الرئيسي (5 تبويبات): الرئيسية، استكشف، المجتمع، الفرق، السجل (+ البحث، الإشعارات، المساعد الذكي، عربي/EN)\n" +
+                                "• المرحلة 1: الهوية + الإعداد + تحليل المهارات + التحديات + الفرق + سجل الخبرة والشارات\n" +
+                                "• المرحلة 2: المسابقات الحية + التصنيف + مركز الهندسة العكسية الأخلاقية + استوديو المرشد\n" +
+                                "• المرحلة 3: توثيق الشركات المتدرج + سجل النقاط الثابت + خريطة الأدلة"
+                        } else {
+                            "• Core Loop: Skill Gap → Learning → Practical Experience → Evaluation → Verified Evidence → Opportunity\n" +
+                                "• 5-Tab Navigation: Home, Discover, Community, Teams, Passport (+ Search, Notifications, Contextual AI Agents, AR/EN RTL/LTR)\n" +
+                                "• MVP Phase 1: Auth + Onboarding + Skill Gap + Challenges + Teams + Experience Passport & 9 Badges\n" +
+                                "• MVP Phase 2: Live Contests + Top-100 Leaderboards + Ethical Reverse Eng Hub + Mentor Studio\n" +
+                                "• MVP Phase 3: Tiered Company Verification + Immutable Point Ledger + Skill Evidence Graph"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = SkillBridgeColors.InkOnDark
                     )
                     Text(
-                        "Open Assumptions:\n" +
-                            "1. Financial prize escrow & payouts assume licensed regional PSP integration prior to live cash disbursement.\n" +
-                            "2. Automated contest judging runs sandbox test suites; subjective rubric items require human Mentor sign-off.\n" +
-                            "3. Reverse Engineering challenges strictly restrict artifacts to authorized sandbox specs with secret-leak scanning.",
+                        if (lang == AppLanguage.AR) {
+                            "ضوابط الشفافية:\n" +
+                                "١. الحساب الجديد يبدأ بـ 0 نقطة و0 شارات دون أي إنجازات وهمية.\n" +
+                                "٢. التقييمات والمكافآت ترتبط بسجل Ledger حتمي غير قابل للتكرار.\n" +
+                                "٣. مختبرات الهندسة العكسية محصورة في بيئات آمنة مع فحص الأسرار ومنع تسريب المفاتيح."
+                        } else {
+                            "Transparency Guardrails:\n" +
+                                "1. Brand-new accounts strictly start at 0 points, 0 streak, Junior baseline, and 0 badges.\n" +
+                                "2. Submissions and badges write idempotently to an immutable Firestore pointLedger and auditLogs trail.\n" +
+                                "3. Reverse Engineering labs restrict artifacts to authorized sandbox specs with secret-leak scanning."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = SkillBridgeColors.SoftCyan
                     )
@@ -626,5 +795,27 @@ fun PrivacyStatesAndBlueprintScreen(
             }
         }
         item { Spacer(Modifier.height(20.dp)) }
+    }
+
+    if (showSignOutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showSignOutConfirm = false },
+            title = { Text(strings.signOut) },
+            text = {
+                Text(
+                    if (lang == AppLanguage.AR) "هل تريد تسجيل الخروج؟ ستبقى تفضيلات اللغة والمظهر محفوظة."
+                    else "Sign out of SkillBridge? Your language and theme preferences remain preserved."
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showSignOutConfirm = false
+                    onSignOut()
+                }) { Text(strings.confirmLabel) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSignOutConfirm = false }) { Text(strings.cancelLabel) }
+            }
+        )
     }
 }

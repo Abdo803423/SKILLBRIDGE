@@ -51,12 +51,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import com.example.core.AppLanguage
 import com.example.core.LocalAppLanguage
 import com.example.core.LocalAppStrings
+import com.example.core.localizedCareerLevel
+import com.example.core.localizedDomain
+import com.example.core.localizedTaskStatus
+import com.example.data.model.AiAgentContextMode
 import com.example.data.model.Team
 import com.example.data.model.TeamTask
 import com.example.data.seed.SkillBridgeEcosystemData
+import com.example.ui.components.ContextualAiAgentBanner
 import com.example.ui.components.InfoNoteBanner
 import com.example.ui.components.StatusPill
 import com.example.ui.components.StatusTone
@@ -82,6 +89,7 @@ fun TeamsHubScreen(
     val lang = LocalAppLanguage.current
     var selectedTab by remember { mutableIntStateOf(0) }
     var showCreateSheet by remember { mutableStateOf(false) }
+    var teamPendingJoin by remember { mutableStateOf<Team?>(null) }
 
     val myLiveTeams = (myTeamsState as? UiState.Success)?.data.orEmpty()
     val recruitingLive = (recruitingTeamsState as? UiState.Success)?.data.orEmpty()
@@ -131,17 +139,24 @@ fun TeamsHubScreen(
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(team.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                            StatusPill("${team.memberIds.size}/${team.maxMembers} Members", StatusTone.REVIEW, Icons.Filled.Group)
+                            StatusPill("${team.memberIds.size}/${team.maxMembers} ${strings.membersLabel}", StatusTone.REVIEW, Icons.Filled.Group)
                         }
-                        Text("${team.domain} • ${team.level}", style = MaterialTheme.typography.labelLarge, color = SkillBridgeColors.BridgeBlueDark)
+                        if (team.id.startsWith("seed_")) {
+                            StatusPill(strings.demoCatalogLabel, StatusTone.NEUTRAL)
+                        }
+                        Text("${localizedDomain(team.domain, lang)} • ${localizedCareerLevel(team.level, lang)}", style = MaterialTheme.typography.labelLarge, color = SkillBridgeColors.BridgeBlueDark)
                         if (team.challengeTitle.isNotBlank()) {
-                            Text("Challenge: ${team.challengeTitle}", style = MaterialTheme.typography.labelMedium, color = SkillBridgeColors.PaidTeal)
+                            Text(
+                                "${if (lang == AppLanguage.AR) "التحدي:" else "Challenge:"} ${team.challengeTitle}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = SkillBridgeColors.PaidTeal
+                            )
                         }
                         Text(team.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             team.rolesNeeded.forEach { role ->
-                                StatusPill("Need: $role", StatusTone.PENDING)
+                                StatusPill("${strings.needRolePrefix} $role", StatusTone.PENDING)
                             }
                             team.requiredSkills.forEach { sk ->
                                 Surface(shape = RoundedCornerShape(SkillBridgeRadius.pill), color = SkillBridgeColors.SoftCyanTint) {
@@ -159,7 +174,7 @@ fun TeamsHubScreen(
                             }
                             if (!isMember) {
                                 Button(
-                                    onClick = { onJoinTeam(team) },
+                                    onClick = { teamPendingJoin = team },
                                     colors = ButtonDefaults.buttonColors(containerColor = SkillBridgeColors.DeepNavy),
                                     modifier = Modifier.weight(1f).height(48.dp).testTag("join_team_${team.id}")
                                 ) {
@@ -180,6 +195,29 @@ fun TeamsHubScreen(
             onCreate = { name, desc, dom, lvl, max, sk, roles, ch ->
                 onCreateTeam(name, desc, dom, lvl, max, sk, roles, ch)
                 showCreateSheet = false
+            }
+        )
+    }
+
+    teamPendingJoin?.let { pending ->
+        AlertDialog(
+            onDismissRequest = { teamPendingJoin = null },
+            title = { Text(strings.joinTeam) },
+            text = {
+                Text(
+                    if (lang == AppLanguage.AR) "هل تريد الانضمام إلى فريق ${pending.name} للمشاركة في ${pending.challengeTitle}؟"
+                    else "Join ${pending.name} to collaborate on ${pending.challengeTitle}?"
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val target = pending
+                    teamPendingJoin = null
+                    onJoinTeam(target)
+                }) { Text(strings.confirmLabel) }
+            },
+            dismissButton = {
+                TextButton(onClick = { teamPendingJoin = null }) { Text(strings.cancelLabel) }
             }
         )
     }
@@ -210,7 +248,7 @@ private fun CreateTeamSheet(
             OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text(if (lang == AppLanguage.AR) "وصف المشروع وإعلان الأعضاء" else "Mission & Teammate Ad") }, modifier = Modifier.fillMaxWidth())
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 SkillBridgeEcosystemData.domains.take(4).forEach { dom ->
-                    FilterChip(selected = domain == dom, onClick = { domain = dom }, label = { Text(dom) })
+                    FilterChip(selected = domain == dom, onClick = { domain = dom }, label = { Text(localizedDomain(dom, lang)) })
                 }
             }
             OutlinedTextField(value = rolesText, onValueChange = { rolesText = it }, label = { Text(if (lang == AppLanguage.AR) "الأدوار المطلوبة" else "Roles Needed") }, modifier = Modifier.fillMaxWidth())
@@ -249,6 +287,7 @@ fun TeamWorkspaceScreen(
     tasksState: UiState<List<TeamTask>>,
     onCreateTask: (title: String, assignee: String, role: String) -> Unit,
     onAdvanceTask: (TeamTask) -> Unit,
+    onOpenAiAgent: (Team, String) -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler(onBack = onBack)
@@ -274,16 +313,33 @@ fun TeamWorkspaceScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(team.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = SkillBridgeColors.PureWhite)
-                    Text("${team.domain} • ${team.challengeTitle}", style = MaterialTheme.typography.labelLarge, color = SkillBridgeColors.SoftCyan)
+                    Text("${localizedDomain(team.domain, lang)} • ${team.challengeTitle}", style = MaterialTheme.typography.labelLarge, color = SkillBridgeColors.SoftCyan)
                     LinearProgressIndicator(
                         progress = { progress.coerceIn(0f, 1f) },
                         modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(999.dp)),
                         color = SkillBridgeColors.LimeGreen,
                         trackColor = SkillBridgeColors.PureWhite.copy(alpha = 0.2f)
                     )
-                    Text("${(progress * 100).toInt()}% Sprint Completion", style = MaterialTheme.typography.labelMedium, color = SkillBridgeColors.LimeGreen)
+                    Text(
+                        if (lang == AppLanguage.AR) "نسبة إنجاز السباق: ${(progress * 100).toInt()}%"
+                        else "${(progress * 100).toInt()}% Sprint Completion",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = SkillBridgeColors.LimeGreen
+                    )
                 }
             }
+        }
+
+        item {
+            ContextualAiAgentBanner(
+                mode = AiAgentContextMode.TEAM_SPRINT_PLANNER,
+                onOpenAgent = {
+                    onOpenAiAgent(
+                        team,
+                        "Team=${team.name}, Challenge=${team.challengeTitle}, Tasks=${tasks.size}, Done=$doneCount"
+                    )
+                }
+            )
         }
 
         item {
@@ -363,7 +419,7 @@ fun TeamWorkspaceScreen(
                         Text(task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text("${task.assigneeName} • ${task.role}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    StatusPill(task.status, tone, Icons.Filled.TaskAlt)
+                    StatusPill(localizedTaskStatus(task.status, lang), tone, Icons.Filled.TaskAlt)
                 }
             }
         }

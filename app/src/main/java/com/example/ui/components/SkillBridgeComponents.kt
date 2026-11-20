@@ -58,13 +58,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.core.AppLanguage
+import com.example.core.LocalAppLanguage
 import com.example.core.LocalAppStrings
+import com.example.core.localizedCareerLevel
 import com.example.ui.theme.SkillBridgeColors
 import com.example.ui.theme.SkillBridgeRadius
 import com.example.ui.theme.SkillBridgeSpacing
 
 /**
- * Faceted geometric isometric S-bridge emblem matching the SkillBridge Brand Showcase Poster.
+ * Official SkillBridge isometric S-ribbon mark matching the SkillBridge Brand Showcase Poster.
  */
 @Composable
 fun SkillBridgeEmblem(
@@ -72,81 +75,21 @@ fun SkillBridgeEmblem(
     size: Dp = 44.dp,
     darkBackground: Boolean = false
 ) {
-    val navyFacet = if (darkBackground) Color(0xFF14355E) else SkillBridgeColors.DeepNavy
-    val blueFacet = SkillBridgeColors.BridgeBlue
-    val cyanFacet = SkillBridgeColors.SoftCyan
-    val limeAccent = SkillBridgeColors.LimeGreen
-
-    Canvas(modifier = modifier.size(size)) {
-        val w = this.size.width
-        val h = this.size.height
-
-        // Top isometric chevron ribbon (deep navy -> cyan)
-        val topLeftFacet = Path().apply {
-            moveTo(w * 0.50f, h * 0.06f)
-            lineTo(w * 0.86f, h * 0.25f)
-            lineTo(w * 0.72f, h * 0.36f)
-            lineTo(w * 0.50f, h * 0.24f)
-            lineTo(w * 0.28f, h * 0.36f)
-            lineTo(w * 0.14f, h * 0.25f)
-            close()
-        }
-        drawPath(topLeftFacet, color = if (darkBackground) cyanFacet else navyFacet)
-
-        // Upper-left descending pillar (bridge blue)
-        val leftPillar = Path().apply {
-            moveTo(w * 0.14f, h * 0.25f)
-            lineTo(w * 0.28f, h * 0.36f)
-            lineTo(w * 0.28f, h * 0.58f)
-            lineTo(w * 0.14f, h * 0.48f)
-            close()
-        }
-        drawPath(leftPillar, color = blueFacet)
-
-        // Diagonal S-bridge span connecting left to right (cyan -> blue gradient)
-        val bridgeSpan = Path().apply {
-            moveTo(w * 0.14f, h * 0.36f)
-            lineTo(w * 0.86f, h * 0.58f)
-            lineTo(w * 0.86f, h * 0.73f)
-            lineTo(w * 0.14f, h * 0.51f)
-            close()
-        }
-        drawPath(
-            bridgeSpan,
-            brush = Brush.linearGradient(listOf(cyanFacet, blueFacet))
+    Surface(
+        modifier = modifier.size(size),
+        shape = RoundedCornerShape((size.value * 0.24f).dp),
+        color = androidx.compose.ui.graphics.Color(0xFF0B233B),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (darkBackground) SkillBridgeColors.BridgeBlue.copy(alpha = 0.45f) else SkillBridgeColors.BorderLight
         )
-
-        // Lower-right descending pillar (deep navy)
-        val rightPillar = Path().apply {
-            moveTo(w * 0.72f, h * 0.42f)
-            lineTo(w * 0.86f, h * 0.51f)
-            lineTo(w * 0.86f, h * 0.74f)
-            lineTo(w * 0.72f, h * 0.65f)
-            close()
-        }
-        drawPath(rightPillar, color = if (darkBackground) blueFacet else navyFacet)
-
-        // Bottom isometric chevron ribbon (deep navy + lime spark tip)
-        val bottomFacet = Path().apply {
-            moveTo(w * 0.14f, h * 0.75f)
-            lineTo(w * 0.28f, h * 0.64f)
-            lineTo(w * 0.50f, h * 0.76f)
-            lineTo(w * 0.72f, h * 0.64f)
-            lineTo(w * 0.86f, h * 0.75f)
-            lineTo(w * 0.50f, h * 0.94f)
-            close()
-        }
-        drawPath(bottomFacet, color = if (darkBackground) cyanFacet else navyFacet)
-
-        // Precision bridge accent node
-        val sparkFacet = Path().apply {
-            moveTo(w * 0.45f, h * 0.48f)
-            lineTo(w * 0.55f, h * 0.48f)
-            lineTo(w * 0.58f, h * 0.54f)
-            lineTo(w * 0.42f, h * 0.54f)
-            close()
-        }
-        drawPath(sparkFacet, color = limeAccent)
+    ) {
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(id = com.example.core.AssetRegistry.BRAND_LOGO_RASTER),
+            contentDescription = "SkillBridge Logo",
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -251,6 +194,7 @@ fun CircularSkillMatchGauge(
                 )
             }
         }
+        val lang = LocalAppLanguage.current
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = label,
@@ -261,9 +205,9 @@ fun CircularSkillMatchGauge(
             Spacer(Modifier.height(4.dp))
             StatusPill(
                 text = when {
-                    clamped >= 85 -> "High Readiness"
-                    clamped >= 60 -> "On Track"
-                    else -> "Bridge Active"
+                    clamped >= 85 -> if (lang == AppLanguage.AR) "جاهزية عالية" else "High Readiness"
+                    clamped >= 60 -> if (lang == AppLanguage.AR) "على المسار الصحيح" else "On Track"
+                    else -> if (lang == AppLanguage.AR) "مسار التطوير نشط" else "Bridge Active"
                 },
                 tone = when {
                     clamped >= 85 -> StatusTone.VERIFIED
@@ -427,6 +371,7 @@ fun LevelAndPlanBadgeRow(
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
+    val lang = LocalAppLanguage.current
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -436,7 +381,7 @@ fun LevelAndPlanBadgeRow(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             StatusPill(
-                text = careerLevel,
+                text = localizedCareerLevel(careerLevel, lang),
                 tone = StatusTone.VERIFIED,
                 icon = Icons.Filled.Verified
             )
@@ -465,6 +410,7 @@ fun AiExplainabilityCard(
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
+    val lang = LocalAppLanguage.current
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)),
@@ -497,7 +443,10 @@ fun AiExplainabilityCard(
                         fontWeight = FontWeight.Bold
                     )
                 }
-                StatusPill(text = "$confidencePercent% conf.", tone = StatusTone.REVIEW)
+                StatusPill(
+                    text = if (lang == AppLanguage.AR) "ثقة $confidencePercent%" else "$confidencePercent% conf.",
+                    tone = StatusTone.REVIEW
+                )
             }
             Text(
                 text = explanation,

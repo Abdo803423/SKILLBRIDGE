@@ -1,6 +1,7 @@
 package com.example.data.seed
 
 import com.example.core.LocalizedText
+import com.example.data.model.BadgeDefinition
 import com.example.data.model.ChallengeItem
 import com.example.data.model.ChallengeSubmission
 import com.example.data.model.CommunityComment
@@ -18,12 +19,134 @@ import com.example.data.model.Team
 import com.example.data.model.TeamTask
 import com.example.data.model.VerificationTier
 
+object SystemThresholds {
+    const val MID_LEVEL_MIN_POINTS = 500L
+    const val MID_LEVEL_MIN_VERIFIED = 2
+    const val SENIOR_LEVEL_MIN_POINTS = 1500L
+    const val SENIOR_LEVEL_MIN_VERIFIED = 5
+    const val DIRECTOR_LEVEL_MIN_POINTS = 3500L
+    const val DIRECTOR_LEVEL_MIN_VERIFIED = 10
+    const val HIGH_SCORE_THRESHOLD = 85L
+    const val TOP_PERFORMER_MIN_POINTS = 1000L
+}
+
 object SkillBridgeEcosystemData {
 
     val domains = listOf("Backend & Cloud", "Data Science & AI", "Mobile & Android", "Cybersecurity", "Product & UX")
     val careerLevels = listOf("Junior", "Mid-level", "Senior", "Director / Leadership")
     val planTiers = listOf("Starter — Free", "Growth — Paid", "Professional+ — Paid", "Company / Enterprise")
     val countries = listOf("Egypt", "Saudi Arabia", "UAE", "Jordan", "Morocco", "Global")
+
+    val badgeDefinitions: List<BadgeDefinition> = listOf(
+        BadgeDefinition(
+            id = "first_challenge",
+            title = LocalizedText("First Challenge", "التحدي الأول"),
+            description = LocalizedText(
+                "Earn your very first mentor-verified challenge or project submission.",
+                "احصل على أول توثيق عملي معتمد لتحدٍ أو مشروع."
+            ),
+            criteria = LocalizedText("1 verified challenge submission", "توثيق تسليم تحدٍ واحد بنجاح"),
+            pointsAwarded = 150,
+            targetCount = 1,
+            category = "CHALLENGE"
+        ),
+        BadgeDefinition(
+            id = "problem_solver",
+            title = LocalizedText("Problem Solver", "حلّال المشكلات"),
+            description = LocalizedText(
+                "Demonstrate strong engineering accuracy across multiple verified challenges.",
+                "أثبت دقة هندسية عالية عبر تحديين موثقين بنسبة ٨٥٪ فأكثر."
+            ),
+            criteria = LocalizedText("2 verified submissions scoring ≥ 85%", "تسليمان موثقان بدرجة ٨٥٪ فأكثر"),
+            pointsAwarded = 250,
+            targetCount = 2,
+            category = "CHALLENGE"
+        ),
+        BadgeDefinition(
+            id = "team_player",
+            title = LocalizedText("Team Player", "روح الفريق"),
+            description = LocalizedText(
+                "Collaborate in a SkillBridge team and ship sprint deliverables together.",
+                "شارك في فريق عمل وأنجز مهام سباق العمل الجماعي."
+            ),
+            criteria = LocalizedText("Join or create 1 team & complete 2 sprint tasks", "الانضمام لفريق وإنجاز مهمتين"),
+            pointsAwarded = 200,
+            targetCount = 3,
+            category = "TEAM"
+        ),
+        BadgeDefinition(
+            id = "community_helper",
+            title = LocalizedText("Community Helper", "مساعد المجتمع"),
+            description = LocalizedText(
+                "Support peers with clear questions, answers, and helpful community posts.",
+                "ساعد المطورين الآخرين بنشر أسئلة تقنية أو إجابات مفيدة."
+            ),
+            criteria = LocalizedText("2 authored community posts or replies", "مشاركتان أو إجابتان مفيدتان في المجتمع"),
+            pointsAwarded = 150,
+            targetCount = 2,
+            category = "COMMUNITY"
+        ),
+        BadgeDefinition(
+            id = "reverse_eng_explorer",
+            title = LocalizedText("Reverse Engineering Explorer", "مستكشف الهندسة العكسية"),
+            description = LocalizedText(
+                "Complete an authorized sandbox Reverse Engineering lab with an Understanding Report.",
+                "أكمل مختبر هندسة عكسية مصرّحًا به مع تقرير فهم موثّق."
+            ),
+            criteria = LocalizedText("1 verified Reverse Engineering lab", "توثيق مختبر هندسة عكسية واحد"),
+            pointsAwarded = 300,
+            targetCount = 1,
+            category = "REVERSE_ENG"
+        ),
+        BadgeDefinition(
+            id = "consistent_builder",
+            title = LocalizedText("Consistent Builder", "البنّاء المستمر"),
+            description = LocalizedText(
+                "Complete learning roadmap milestones and verified practice deliverables consistently.",
+                "أكمل معالم خارطة التعلم والتسليمات العملية باستمرار."
+            ),
+            criteria = LocalizedText("3 completed roadmap milestones or submissions", "٣ معالم خارطة طريق أو تسليمات مكتملة"),
+            pointsAwarded = 180,
+            targetCount = 3,
+            category = "CONSISTENCY"
+        ),
+        BadgeDefinition(
+            id = "verified_skill",
+            title = LocalizedText("Verified Skill", "مهارة موثّقة"),
+            description = LocalizedText(
+                "Accumulate distinct verified skills backed by rubric evidence on your Passport.",
+                "اجمع ٣ مهارات متميزة موثّقة بأدلة عملية في سجل الخبرة."
+            ),
+            criteria = LocalizedText("3 unique verified skills on Passport", "٣ مهارات موثّقة مختلفة في سجلك"),
+            pointsAwarded = 250,
+            targetCount = 3,
+            category = "PASSPORT"
+        ),
+        BadgeDefinition(
+            id = "mentor_contributor",
+            title = LocalizedText("Mentor Contributor", "مساهم إرشادي"),
+            description = LocalizedText(
+                "Contribute constructive evaluations or accepted best-answer guidance to peers.",
+                "قدّم مراجعات بنّاءة أو إجابات معتمدة لمساعدة الزملاء."
+            ),
+            criteria = LocalizedText("2 mentor evaluations or accepted answers", "تقييمان إرشاديان أو إجابتان معتمدتان"),
+            pointsAwarded = 220,
+            targetCount = 2,
+            category = "MENTOR"
+        ),
+        BadgeDefinition(
+            id = "top_mena_performer",
+            title = LocalizedText("Top MENA Performer", "نخبة الشرق الأوسط"),
+            description = LocalizedText(
+                "Reach 1,000+ verified SkillBridge points through real challenges & contributions.",
+                "تجاوز ١٠٠٠ نقطة موثّقة عبر التحديات والمساهمات الحقيقية."
+            ),
+            criteria = LocalizedText("1,000 verified points accumulated", "جمع ١٠٠٠ نقطة موثّقة"),
+            pointsAwarded = 400,
+            targetCount = 1000,
+            category = "RANK"
+        )
+    )
 
     val challenges: List<ChallengeItem> = listOf(
         ChallengeItem(
@@ -386,7 +509,8 @@ object SkillBridgeEcosystemData {
             rewardAmount = "$450 Team Split",
             rewardStatus = "PAID",
             isPublicOnPassport = true,
-            verificationCode = "SB-VER-2026-8412"
+            verificationCode = "SB-VER-2026-8412",
+            isDemoSample = true
         ),
         ChallengeSubmission(
             id = "seed_sub_2",
@@ -406,7 +530,8 @@ object SkillBridgeEcosystemData {
             rewardAmount = "$300 Bounty",
             rewardStatus = "APPROVED",
             isPublicOnPassport = true,
-            verificationCode = "SB-REV-2026-3905"
+            verificationCode = "SB-REV-2026-3905",
+            isDemoSample = true
         )
     )
 

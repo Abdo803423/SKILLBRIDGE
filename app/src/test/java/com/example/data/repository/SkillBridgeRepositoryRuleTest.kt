@@ -289,6 +289,217 @@ class SkillBridgeRepositoryRuleTest : FirestoreEmulatorTestBase() {
         assertEquals(FirebaseFirestoreException.Code.PERMISSION_DENIED, captured?.code)
     }
 
+    @Test
+    fun brandNewProfile_startsWithZeroPointsStreakVerifiedCount_andJuniorLevel() = runBlocking {
+        val uid = signInTestUser("fresh_${System.nanoTime()}@test.com")
+        val repo = SkillBridgeRepository(firestore)
+
+        val res = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.upsertProfile(
+                userId = uid,
+                displayName = "Fresh Learner",
+                currentRole = "Builder",
+                experienceLevel = "Junior"
+            )
+        }
+        assertTrue("upsertProfile failed: ${res.exceptionOrNull()?.stackTraceToString()}", res.isSuccess)
+
+        val profile = withTimeout(FLOW_TIMEOUT_MS) {
+            repo.observeProfile(uid).first { it != null }
+        }
+        assertNotNull(profile)
+        assertEquals(0L, profile?.points)
+        assertEquals(0L, profile?.streakDays)
+        assertEquals(0L, profile?.verifiedSkillCount)
+        assertEquals("Junior", profile?.careerLevel)
+    }
+
+    @Test
+    fun updateUserPreferences_persistsLanguageDarkThemeAiAndRoute() = runBlocking {
+        val uid = signInTestUser("prefs_${System.nanoTime()}@test.com")
+        val repo = SkillBridgeRepository(firestore)
+
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.upsertProfile(uid, "Prefs User", "Developer", "Junior").getOrThrow()
+            repo.updateUserPreferences(
+                uid,
+                mapOf(
+                    "preferredLanguage" to "AR",
+                    "darkTheme" to true,
+                    "aiPersonalizationEnabled" to false,
+                    "lastRoute" to "passport"
+                )
+            ).getOrThrow()
+        }
+
+        val updated = withTimeout(FLOW_TIMEOUT_MS) {
+            repo.observeProfile(uid).first { it?.preferredLanguage == "AR" }
+        }
+        assertEquals("AR", updated?.preferredLanguage)
+        assertEquals(true, updated?.darkTheme)
+        assertEquals(false, updated?.aiPersonalizationEnabled)
+        assertEquals("passport", updated?.lastRoute)
+    }
+
+    @Test
+    fun awardSubmissionEvaluationAndSync_isIdempotentOnApproval_andSupportsRejectionReason() = runBlocking {
+        val uid = signInTestUser("eval_${System.nanoTime()}@test.com")
+        val repo = SkillBridgeRepository(firestore)
+
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.upsertProfile(uid, "Idempotent User", "Backend", "Junior").getOrThrow()
+        }
+
+        val approvedSubId = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.submitChallengeSolution(
+                userId = uid,
+                challengeId = "ch_smart_city",
+                challengeTitle = "Smart City Analytics Dashboard",
+                companyName = "NileGrid Energy",
+                category = "CHALLENGE",
+                roleInTeam = "Solo",
+                skillsApplied = listOf("SQL", "Kotlin"),
+                repoOrDemoUrl = "https://github.com/example/smartcity",
+                understandingReport = "Indexed time-series queries and verified p95 under 120ms.",
+                pointsReward = 550,
+                rewardAmount = "$200"
+            ).getOrThrow()
+        }
+
+        val approvedSub = withTimeout(FLOW_TIMEOUT_MS) {
+            repo.observeSubmissions(uid).first { list -> list.any { it.id == approvedSubId } }
+                .first { it.id == approvedSubId }
+        }
+
+        // First verification awards 550 points
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.awardSubmissionEvaluationAndSync(
+                userId = uid,
+                submission = approvedSub,
+                approve = true,
+                score = 92,
+                feedback = "Well-structured indices."
+            ).getOrThrow()
+        }
+        // Calling verification again for the SAME submission must remain strictly idempotent
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.awardSubmissionEvaluationAndSync(
+                userId = uid,
+                submission = approvedSub,
+                approve = true,
+                score = 95,
+                feedback = "Re-verified."
+            ).getOrThrow()
+        }
+
+        val profileAfterApprove = withTimeout(FLOW_TIMEOUT_MS) {
+            repo.observeProfile(uid).first { (it?.points ?: 0L) > 0L }
+        }
+        assertEquals(550L, profileAfterApprove?.points)
+        assertEquals(2L, profileAfterApprove?.verifiedSkillCount)
+
+        // Rejection stores rejectionReason and awards 0 points
+        val rejectedSubId = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.submitChallengeSolution(
+                userId = uid,
+                challengeId = "ch_re_jwt_lab",
+                challengeTitle = "JWT Lab",
+                companyName = "Cedars",
+                category = "REVERSE_ENG",
+                roleInTeam = "Solo",
+                skillsApplied = listOf("JWT"),
+                repoOrDemoUrl = "https://github.com/example/jwt",
+                understandingReport = "Brief note.",
+                pointsReward = 380,
+                rewardAmount = "$100"
+            ).getOrThrow()
+        }
+        val rejectedSub = withTimeout(FLOW_TIMEOUT_MS) {
+            repo.observeSubmissions(uid).first { list -> list.any { it.id == rejectedSubId } }
+                .first { it.id == rejectedSubId }
+        }
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.awardSubmissionEvaluationAndSync(
+                userId = uid,
+                submission = rejectedSub,
+                approve = false,
+                score = 45,
+                feedback = "Missing rotation family proof.",
+                rejectionReason = "Understanding report lacks token replay test trace."
+            ).getOrThrow()
+        }
+        val persistedRejected = withTimeout(FLOW_TIMEOUT_MS) {
+            repo.observeSubmissions(uid).first { list ->
+                list.any { it.id == rejectedSubId && it.status == "REJECTED" }
+            }.first { it.id == rejectedSubId }
+        }
+        assertEquals("REJECTED", persistedRejected.status)
+        assertEquals("Understanding report lacks token replay test trace.", persistedRejected.rejectionReason)
+        assertEquals(0L, persistedRejected.pointsAwarded)
+
+        val profileAfterReject = withTimeout(FLOW_TIMEOUT_MS) {
+            repo.observeProfile(uid).first()
+        }
+        assertEquals(550L, profileAfterReject?.points)
+    }
+
+    @Test
+    fun awardBadgeIfAbsent_isIdempotentAndUpdatesPointsOnce() = runBlocking {
+        val uid = signInTestUser("badge_${System.nanoTime()}@test.com")
+        val repo = SkillBridgeRepository(firestore)
+        val firstBadge = com.example.data.seed.SkillBridgeEcosystemData.badgeDefinitions.first()
+
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.upsertProfile(uid, "Badge User", "Mobile", "Junior").getOrThrow()
+        }
+
+        val firstAward = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.awardBadgeIfAbsent(uid, firstBadge).getOrThrow()
+        }
+        val secondAward = withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.awardBadgeIfAbsent(uid, firstBadge).getOrThrow()
+        }
+        assertTrue(firstAward)
+        assertEquals(false, secondAward)
+
+        val badges = withTimeout(FLOW_TIMEOUT_MS) {
+            repo.observeBadges(uid).first { it.isNotEmpty() }
+        }
+        assertEquals(1, badges.size)
+        assertEquals(firstBadge.id, badges.first().badgeId)
+
+        val profile = withTimeout(FLOW_TIMEOUT_MS) {
+            repo.observeProfile(uid).first { (it?.points ?: 0L) == firstBadge.pointsAwarded.toLong() }
+        }
+        assertEquals(firstBadge.pointsAwarded.toLong(), profile?.points)
+    }
+
+    @Test
+    fun deleteUserAccountData_removesProfileAndSubcollections() = runBlocking {
+        val uid = signInTestUser("del_${System.nanoTime()}@test.com")
+        val repo = SkillBridgeRepository(firestore)
+        val firstBadge = com.example.data.seed.SkillBridgeEcosystemData.badgeDefinitions.first()
+
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+            repo.upsertProfile(uid, "Delete Me", "Cloud", "Junior").getOrThrow()
+            repo.awardBadgeIfAbsent(uid, firstBadge).getOrThrow()
+            repo.deleteUserAccountData(uid).getOrThrow()
+        }
+
+        val profileSnap = withTimeout(DEFAULT_TIMEOUT_MS) {
+            firestore.collection("users").document(uid).get().await()
+        }
+        val badgesSnap = withTimeout(DEFAULT_TIMEOUT_MS) {
+            firestore.collection("users").document(uid).collection("badges").get().await()
+        }
+        val ledgerSnap = withTimeout(DEFAULT_TIMEOUT_MS) {
+            firestore.collection("users").document(uid).collection("pointLedger").get().await()
+        }
+        assertEquals(false, profileSnap.exists())
+        assertTrue(badgesSnap.isEmpty)
+        assertTrue(ledgerSnap.isEmpty)
+    }
+
     private companion object {
         const val ALICE_EMAIL = "alice_sb@test.com"
         const val BOB_EMAIL = "bob_sb@test.com"

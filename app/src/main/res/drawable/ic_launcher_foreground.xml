@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/ic_skillbridge_logo_1794605869813"
+        android:drawable="@drawable/skillbridge_app_icon_1794769666078"
         android:gravity="center" />
 </layer-list>

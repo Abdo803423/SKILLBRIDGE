@@ -67,15 +67,20 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.R
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import com.example.core.AppLanguage
+import com.example.core.AssetRegistry
 import com.example.core.LocalAppLanguage
 import com.example.core.LocalAppStrings
+import com.example.core.localizedCareerLevel
+import com.example.data.model.AiAgentContextMode
 import com.example.data.model.ChallengeItem
 import com.example.data.model.ContestStatus
 import com.example.data.model.DiscoverCategory
 import com.example.data.model.VerificationTier
 import com.example.data.seed.SkillBridgeEcosystemData
+import com.example.ui.components.ContextualAiAgentBanner
 import com.example.ui.components.InfoNoteBanner
 import com.example.ui.components.SectionHeaderRow
 import com.example.ui.components.StatusPill
@@ -171,7 +176,7 @@ fun DiscoverHubScreen(
                     FilterChip(
                         selected = selectedLevel == lvl,
                         onClick = { selectedLevel = if (selectedLevel == lvl) null else lvl },
-                        label = { Text(lvl) }
+                        label = { Text(localizedCareerLevel(lvl, lang)) }
                     )
                 }
                 FilterChip(
@@ -232,7 +237,7 @@ fun DiscoverHubScreen(
                                     tone = if (item.companyTier == VerificationTier.TRUSTED) StatusTone.VERIFIED else StatusTone.REVIEW,
                                     icon = Icons.Filled.Verified
                                 )
-                                StatusPill(text = item.level, tone = StatusTone.NEUTRAL)
+                                StatusPill(text = localizedCareerLevel(item.level, lang), tone = StatusTone.NEUTRAL)
                             }
                             Text(item.title.get(lang), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Text(item.companyName, style = MaterialTheme.typography.labelLarge, color = SkillBridgeColors.BridgeBlueDark)
@@ -270,7 +275,7 @@ fun DiscoverHubScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         StatusPill(
-                            text = if (item.pointsReward > 0) "${item.prizePool} • +${item.pointsReward} pts" else item.prizePool,
+                            text = if (item.pointsReward > 0) "${item.prizePool} • +${item.pointsReward} ${strings.pointsLabel}" else item.prizePool,
                             tone = StatusTone.PAID
                         )
                     }
@@ -294,6 +299,7 @@ fun ChallengeDetailScreen(
     onToggleSave: () -> Unit,
     onRunWorkSim: (String, String, String) -> Unit,
     onSubmitSolution: (String, String, String, List<String>) -> Unit,
+    onOpenAiAgent: (AiAgentContextMode, String, String) -> Unit,
     onOpenTeams: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -317,7 +323,7 @@ fun ChallengeDetailScreen(
                     .clip(RoundedCornerShape(SkillBridgeRadius.lg))
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.img_hero_bridge_1794605869240),
+                    painter = painterResource(id = AssetRegistry.HERO_BRIDGE_BANNER),
                     contentDescription = challenge.title.get(lang),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -456,6 +462,24 @@ fun ChallengeDetailScreen(
             }
         }
 
+        item {
+            val agentMode = if (challenge.category == DiscoverCategory.REVERSE_ENG) {
+                AiAgentContextMode.REVERSE_ENG_GUIDE
+            } else {
+                AiAgentContextMode.CHALLENGE_MENTOR
+            }
+            ContextualAiAgentBanner(
+                mode = agentMode,
+                onOpenAgent = {
+                    onOpenAiAgent(
+                        agentMode,
+                        challenge.title.get(lang),
+                        "Challenge=${challenge.title.en}, Skills=${challenge.skills.joinToString(", ")}, Rubric=${challenge.rubric.joinToString("; ") { it.en }}"
+                    )
+                }
+            )
+        }
+
         if (challenge.faq.isNotEmpty()) {
             item {
                 Card(
@@ -464,9 +488,17 @@ fun ChallengeDetailScreen(
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Q&A / Changelog", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (lang == AppLanguage.AR) "الأسئلة الشائعة والتحديثات" else "Q&A / Changelog",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                         challenge.faq.forEach { (q, a) ->
-                            Text("Q: ${q.get(lang)}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "${if (lang == AppLanguage.AR) "س:" else "Q:"} ${q.get(lang)}",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
                             Text(a.get(lang), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -513,6 +545,7 @@ fun SubmitSolutionSheet(
     var roleInTeam by remember { mutableStateOf(if (challenge.isTeamAllowed) "Backend & Analytics Lead" else "Solo Contributor") }
     var repoUrl by remember { mutableStateOf("https://github.com/username/skillbridge-solution") }
     var report by remember { mutableStateOf("") }
+    var showConfirmSubmit by remember { mutableStateOf(false) }
     val leaked = containsSecret(report) || containsSecret(repoUrl)
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -551,7 +584,7 @@ fun SubmitSolutionSheet(
                 }
             }
             Button(
-                onClick = { onSubmit(roleInTeam, repoUrl, report) },
+                onClick = { showConfirmSubmit = true },
                 enabled = !leaked && report.trim().length >= 15,
                 colors = ButtonDefaults.buttonColors(containerColor = SkillBridgeColors.DeepNavy),
                 modifier = Modifier.fillMaxWidth().height(50.dp).testTag("confirm_submit_solution_btn")
@@ -560,6 +593,28 @@ fun SubmitSolutionSheet(
             }
             Spacer(Modifier.height(16.dp))
         }
+    }
+
+    if (showConfirmSubmit) {
+        AlertDialog(
+            onDismissRequest = { showConfirmSubmit = false },
+            title = { Text(if (lang == AppLanguage.AR) "تأكيد إرسال الحل للتقييم" else "Confirm Solution Submission") },
+            text = {
+                Text(
+                    if (lang == AppLanguage.AR) "سيتم إرسال الحل وتقرير الفهم إلى قائمة مراجعة المرشدين لتوثيقه في سجل الخبرة."
+                    else "Your solution link and Understanding Report will be queued for Mentor & Rubric verification."
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showConfirmSubmit = false
+                    onSubmit(roleInTeam, repoUrl, report)
+                }) { Text(strings.confirmLabel) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmSubmit = false }) { Text(strings.cancelLabel) }
+            }
+        )
     }
 }
 
@@ -712,7 +767,7 @@ fun ContestsScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("${prob.code}. ${prob.title.get(lang)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Text("${prob.difficulty} • +${prob.points} pts • ${prob.solvedByCount} AC", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("${prob.difficulty} • +${prob.points} ${strings.pointsLabel} • ${prob.solvedByCount} AC", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             val tone = when (prob.status) {
                                 "AC" -> StatusTone.VERIFIED
@@ -720,7 +775,13 @@ fun ContestsScreen(
                                 "LOCKED" -> StatusTone.LOCKED
                                 else -> StatusTone.NEUTRAL
                             }
-                            StatusPill(prob.status, tone)
+                            val statusText = when {
+                                lang == AppLanguage.AR && prob.status == "AC" -> "مقبول"
+                                lang == AppLanguage.AR && prob.status == "PENDING" -> "قيد الانتظار"
+                                lang == AppLanguage.AR && prob.status == "LOCKED" -> "مقفل"
+                                else -> prob.status
+                            }
+                            StatusPill(statusText, tone)
                         }
                     }
                 }
@@ -738,7 +799,7 @@ fun ContestsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("#${entry.rank}  ${entry.name}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            StatusPill("Rating ${entry.rating} • ${entry.points} pts", StatusTone.REVIEW)
+                            StatusPill("${if (lang == AppLanguage.AR) "تقييم" else "Rating"} ${entry.rating} • ${entry.points} ${strings.pointsLabel}", StatusTone.REVIEW)
                         }
                     }
                 }
@@ -769,6 +830,7 @@ fun ContestsScreen(
 fun ReverseEngineeringHubScreen(
     containsSecret: (String) -> Boolean,
     onSubmitLab: (ChallengeItem, String, String, String) -> Unit,
+    onOpenAiAgent: (AiAgentContextMode, String, String) -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler(onBack = onBack)
@@ -789,6 +851,19 @@ fun ReverseEngineeringHubScreen(
             }
             Spacer(Modifier.height(6.dp))
             StatusPill(strings.authorizedScopeBadge, StatusTone.ETHICAL, Icons.Filled.Security)
+        }
+
+        item {
+            ContextualAiAgentBanner(
+                mode = AiAgentContextMode.REVERSE_ENG_GUIDE,
+                onOpenAgent = {
+                    onOpenAiAgent(
+                        AiAgentContextMode.REVERSE_ENG_GUIDE,
+                        strings.reverseEngTitle,
+                        "Authorized sandbox labs=${labs.joinToString(", ") { it.title.en }}"
+                    )
+                }
+            )
         }
 
         item {
@@ -824,7 +899,7 @@ fun ReverseEngineeringHubScreen(
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         StatusPill(strings.authorizedScopeBadge, StatusTone.ETHICAL)
-                        StatusPill("+${lab.pointsReward} pts • ${lab.prizePool}", StatusTone.PAID)
+                        StatusPill("+${lab.pointsReward} ${strings.pointsLabel} • ${lab.prizePool}", StatusTone.PAID)
                     }
                     Text(lab.title.get(lang), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(lab.scopeNote?.get(lang).orEmpty(), style = MaterialTheme.typography.labelMedium, color = SkillBridgeColors.EthicalPurple)

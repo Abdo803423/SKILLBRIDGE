@@ -61,9 +61,13 @@ import androidx.compose.ui.unit.dp
 import com.example.core.AppLanguage
 import com.example.core.LocalAppLanguage
 import com.example.core.LocalAppStrings
+import com.example.core.localizedCareerLevel
+import com.example.core.localizedPostType
+import com.example.data.model.AiAgentContextMode
 import com.example.data.model.CommunityComment
 import com.example.data.model.CommunityPost
 import com.example.data.seed.SkillBridgeEcosystemData
+import com.example.ui.components.ContextualAiAgentBanner
 import com.example.ui.components.StatusPill
 import com.example.ui.components.StatusTone
 import com.example.ui.theme.SkillBridgeColors
@@ -88,6 +92,7 @@ fun CommunityFeedScreen(
     onMuteAuthor: (String) -> Unit,
     onCreatePost: (postType: String, title: String, body: String, tags: List<String>) -> Unit,
     onReportPost: (postId: String, reason: String) -> Unit,
+    onOpenAiAgent: (AiAgentContextMode, String, String) -> Unit,
     onOpenPost: (CommunityPost) -> Unit
 ) {
     val strings = LocalAppStrings.current
@@ -158,6 +163,17 @@ fun CommunityFeedScreen(
                         )
                     }
                 }
+                Spacer(Modifier.height(10.dp))
+                ContextualAiAgentBanner(
+                    mode = AiAgentContextMode.COMMUNITY_COACH,
+                    onOpenAgent = {
+                        onOpenAiAgent(
+                            AiAgentContextMode.COMMUNITY_COACH,
+                            strings.communityTitle,
+                            "VisiblePosts=${mergedPosts.size}, FilterTag=${selectedTag ?: "All"}"
+                        )
+                    }
+                )
             }
 
             items(mergedPosts, key = { it.id }) { post ->
@@ -185,7 +201,10 @@ fun CommunityFeedScreen(
                                     icon = if (post.authorVerified) Icons.Filled.Verified else null
                                 )
                             }
-                            StatusPill(post.postType, StatusTone.REVIEW)
+                            StatusPill(localizedPostType(post.postType, lang), StatusTone.REVIEW)
+                        }
+                        if (post.id.startsWith("seed_")) {
+                            StatusPill(strings.demoCatalogLabel, StatusTone.NEUTRAL)
                         }
                         Text(post.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(post.body, style = MaterialTheme.typography.bodyMedium, maxLines = 3, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -284,12 +303,14 @@ private fun CreatePostSheet(
     onDismiss: () -> Unit,
     onPublish: (String, String, String, List<String>) -> Unit
 ) {
+    val strings = LocalAppStrings.current
     val lang = LocalAppLanguage.current
     val postTypes = listOf("Technical Question", "Help Request", "Tutorial", "Team Ad", "Code Review", "Post-Contest Solution", "Suggest Challenge")
     var selectedType by remember { mutableStateOf(postTypes.first()) }
     var title by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
     var tagsText by remember { mutableStateOf("Kotlin, Architecture") }
+    var showConfirmPublish by remember { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -299,7 +320,7 @@ private fun CreatePostSheet(
             Text(if (lang == AppLanguage.AR) "نشر سؤال أو مشاركة" else "Create Community Post", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 postTypes.forEach { t ->
-                    FilterChip(selected = selectedType == t, onClick = { selectedType = t }, label = { Text(t) })
+                    FilterChip(selected = selectedType == t, onClick = { selectedType = t }, label = { Text(localizedPostType(t, lang)) })
                 }
             }
             OutlinedTextField(
@@ -322,10 +343,7 @@ private fun CreatePostSheet(
                 modifier = Modifier.fillMaxWidth()
             )
             Button(
-                onClick = {
-                    val tags = tagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                    onPublish(selectedType, title, body, tags)
-                },
+                onClick = { showConfirmPublish = true },
                 enabled = title.trim().length >= 3 && body.trim().length >= 3,
                 colors = ButtonDefaults.buttonColors(containerColor = SkillBridgeColors.DeepNavy),
                 modifier = Modifier.fillMaxWidth().height(48.dp).testTag("publish_post_btn")
@@ -334,6 +352,29 @@ private fun CreatePostSheet(
             }
             Spacer(Modifier.height(16.dp))
         }
+    }
+
+    if (showConfirmPublish) {
+        AlertDialog(
+            onDismissRequest = { showConfirmPublish = false },
+            title = { Text(if (lang == AppLanguage.AR) "تأكيد نشر المشاركة" else "Confirm Community Post") },
+            text = {
+                Text(
+                    if (lang == AppLanguage.AR) "سيظهر منشورك لجميع أعضاء المجتمع. تأكد من خلوه من أي مفاتيح سرية."
+                    else "Your post will be visible to the SkillBridge community. Make sure no credentials are included."
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showConfirmPublish = false
+                    val tags = tagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                    onPublish(selectedType, title, body, tags)
+                }) { Text(strings.confirmLabel) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmPublish = false }) { Text(strings.cancelLabel) }
+            }
+        )
     }
 }
 
@@ -372,13 +413,13 @@ fun PostDetailScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        StatusPill(post.postType, StatusTone.REVIEW)
-                        StatusPill(post.authorLevel, StatusTone.NEUTRAL)
+                        StatusPill(localizedPostType(post.postType, lang), StatusTone.REVIEW)
+                        StatusPill(localizedCareerLevel(post.authorLevel, lang), StatusTone.NEUTRAL)
                         if (post.authorVerified) StatusPill(strings.verifiedBadge, StatusTone.VERIFIED)
                     }
                     Text(post.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text(post.body, style = MaterialTheme.typography.bodyLarge)
-                    Text("${post.authorName} • ${post.helpfulCount} helpful", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${post.authorName} • ${post.helpfulCount} ${strings.helpfulLabel}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -450,6 +491,9 @@ private fun CommentCard(
     onAcceptBest: () -> Unit
 ) {
     val strings = LocalAppStrings.current
+    val lang = LocalAppLanguage.current
+    var showBestConfirm by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -467,17 +511,39 @@ private fun CommentCard(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(comment.authorName, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    StatusPill(comment.authorLevel, StatusTone.NEUTRAL)
+                    StatusPill(localizedCareerLevel(comment.authorLevel, lang), StatusTone.NEUTRAL)
                     if (comment.isBestAnswer) StatusPill(strings.bestAnswer, StatusTone.VERIFIED, Icons.Filled.CheckCircle)
                 }
             }
             Text(comment.body, style = MaterialTheme.typography.bodyMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onReply) { Text("Reply") }
+                TextButton(onClick = onReply) { Text(strings.replyLabel) }
                 if (canAcceptBest) {
-                    OutlinedButton(onClick = onAcceptBest) { Text(strings.acceptAnswer) }
+                    OutlinedButton(onClick = { showBestConfirm = true }) { Text(strings.acceptAnswer) }
                 }
             }
         }
+    }
+
+    if (showBestConfirm) {
+        AlertDialog(
+            onDismissRequest = { showBestConfirm = false },
+            title = { Text(strings.acceptAnswer) },
+            text = {
+                Text(
+                    if (lang == AppLanguage.AR) "تعيين رد ${comment.authorName} كأفضل إجابة؟"
+                    else "Mark ${comment.authorName}'s reply as the accepted Best Answer?"
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showBestConfirm = false
+                    onAcceptBest()
+                }) { Text(strings.confirmLabel) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBestConfirm = false }) { Text(strings.cancelLabel) }
+            }
+        )
     }
 }
